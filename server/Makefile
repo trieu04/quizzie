@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -Iinclude -D_XOPEN_SOURCE=500
-LDFLAGS = -lncurses -pthread
+LDFLAGS = -pthread
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -12,7 +12,7 @@ SRCS = $(shell find $(SRC_DIR) -name '*.c')
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Output binary
-TARGET = $(BIN_DIR)/client
+TARGET = $(BIN_DIR)/server
 
 .PHONY: all clean directories
 

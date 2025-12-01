@@ -1,86 +1,187 @@
 #include "ui.h"
+#include "net.h"
 #include <ncurses.h>
 #include <string.h>
 
-static int current_question = 0;
 static int scroll_offset = 0;
-static const char* question_text = 
-    "This is a very long question text to demonstrate scrolling capabilities in the Ncurses UI.\n"
-    "It spans multiple lines and requires the user to scroll down to read the full content.\n"
-    "Question: What is the capital of France?\n"
-    "\n"
-    "A. London\n"
-    "B. Berlin\n"
-    "C. Paris\n"
-    "D. Madrid\n"
-    "\n"
-    "Please select the correct answer using the keys A, B, C, or D.\n"
-    "You can also click on the options if mouse support is enabled.\n"
-    "Use UP/DOWN keys to scroll this text area.";
+static int selected_option = -1; // -1: none, 0-3: A-D
 
 void page_quiz_draw(ClientContext* ctx) {
-    (void)ctx;
     int row, col;
     getmaxyx(stdscr, row, col);
 
-    // Sidebar (Left 20%)
-    int sidebar_width = col / 5;
-    for (int i = 0; i < row; ++i) {
-        mvaddch(i, sidebar_width, '|');
+    // Sidebar (Left 25%)
+    int sidebar_width = col / 4;
+    for (int i = 0; i < row - 1; ++i) {
+        mvaddch(i, sidebar_width, ACS_VLINE);
     }
 
     // Sidebar content
-    mvprintw(1, 2, "Time: 10:00");
-    mvprintw(3, 2, "Progress: 1/10");
+    attron(A_BOLD);
+    mvprintw(1, 2, "QUIZ");
+    attroff(A_BOLD);
     
-    mvprintw(5, 2, "Questions:");
-    for (int i = 0; i < 10; ++i) {
-        if (i == current_question) attron(A_REVERSE);
-        mvprintw(7 + i, 4, "Q%d", i + 1);
-        if (i == current_question) attroff(A_REVERSE);
+    mvprintw(3, 2, "Room: %d", ctx->current_room_id);
+    mvprintw(4, 2, "Player: %s", ctx->username);
+    
+    if (ctx->is_host) {
+        attron(A_BOLD);
+        mvprintw(5, 2, "[HOST]");
+        attroff(A_BOLD);
+    }
+    
+    mvprintw(7, 2, "Progress:");
+    mvprintw(8, 2, "%d / %d", ctx->current_question + 1, ctx->question_count > 0 ? ctx->question_count : 1);
+    
+    // Question navigation in sidebar
+    mvprintw(10, 2, "Questions:");
+    int max_q_display = row - 14;
+    for (int i = 0; i < ctx->question_count && i < max_q_display; ++i) {
+        if (i == ctx->current_question) attron(A_REVERSE);
+        char answered = ctx->answers[i] != 0 ? ctx->answers[i] : '-';
+        mvprintw(12 + i, 4, "Q%d [%c]", i + 1, answered);
+        if (i == ctx->current_question) attroff(A_REVERSE);
     }
 
-    // Main Content (Right 80%)
+    // Main Content (Right 75%)
     int main_x = sidebar_width + 2;
     int main_width = col - main_x - 2;
     
-    // Simple scrolling text view
-    int line = 0;
-    int y = 2;
-    const char* p = question_text;
-    while (*p && y < row - 2) {
-        // Find end of line
-        const char* eol = strchr(p, '\n');
-        int len = eol ? (int)(eol - p) : (int)strlen(p);
+    // Status message at top
+    if (strlen(ctx->status_message) > 0) {
+        mvprintw(1, main_x, "%s", ctx->status_message);
+    }
+    
+    // Check if we have questions
+    if (ctx->question_count == 0) {
+        attron(A_BOLD);
+        mvprintw(row/2 - 2, main_x, "Waiting for quiz to start...");
+        attroff(A_BOLD);
         
-        if (line >= scroll_offset) {
-            mvprintw(y++, main_x, "%.*s", len > main_width ? main_width : len, p);
+        if (ctx->is_host) {
+            mvprintw(row/2, main_x, "Press 'S' to start the quiz!");
+        } else {
+            mvprintw(row/2, main_x, "Waiting for host to start the game...");
+        }
+    } else {
+        // Display current question
+        Question* q = &ctx->questions[ctx->current_question];
+        
+        // Question number and text
+        attron(A_BOLD);
+        mvprintw(3, main_x, "Question %d:", ctx->current_question + 1);
+        attroff(A_BOLD);
+        
+        // Word wrap the question text
+        int y = 5;
+        int len = strlen(q->question);
+        int pos = 0;
+        while (pos < len && y < row - 10) {
+            int line_len = (len - pos > main_width) ? main_width : (len - pos);
+            // Find word boundary for cleaner wrap
+            if (line_len < len - pos) {
+                int space = line_len;
+                while (space > 0 && q->question[pos + space] != ' ') space--;
+                if (space > 0) line_len = space + 1;
+            }
+            mvprintw(y++, main_x, "%.*s", line_len, q->question + pos);
+            pos += line_len;
         }
         
-        if (!eol) break;
-        p = eol + 1;
-        line++;
+        // Options
+        y += 2;
+        char options[] = {'A', 'B', 'C', 'D'};
+        for (int i = 0; i < 4; i++) {
+            if (ctx->answers[ctx->current_question] == options[i]) {
+                attron(A_REVERSE);
+            }
+            if (i == selected_option) {
+                attron(A_BOLD);
+            }
+            mvprintw(y + i * 2, main_x, "[%c] %s", options[i], q->options[i]);
+            attroff(A_REVERSE);
+            attroff(A_BOLD);
+        }
+        
+        // Navigation hints
+        y = row - 4;
+        mvprintw(y, main_x, "Selected: %c", 
+                 ctx->answers[ctx->current_question] ? ctx->answers[ctx->current_question] : '-');
     }
-
-    mvprintw(row - 1, main_x, "Scroll: UP/DOWN | Select: A-D | Back: ESC");
+    
+    // Footer
+    mvprintw(row - 2, 2, "A-D: Answer | LEFT/RIGHT: Nav | S: Submit | ESC: Leave");
 }
 
 void page_quiz_handle_input(ClientContext* ctx, int input) {
     if (input == 27) { // ESC
+        // Leave quiz - go back to room list
+        ctx->current_room_id = -1;
+        ctx->question_count = 0;
+        ctx->current_question = 0;
+        ctx->is_host = false;
+        memset(ctx->answers, 0, sizeof(ctx->answers));
         ctx->current_state = PAGE_ROOM_LIST;
+        scroll_offset = 0;
+        selected_option = -1;
+    } else if (input == 's' || input == 'S') {
+        if (ctx->is_host && ctx->question_count == 0) {
+            // Host starts the game
+            if (ctx->connected) {
+                client_send_message(ctx, "START_GAME", "");
+                strcpy(ctx->status_message, "Starting game...");
+            }
+        } else if (ctx->question_count > 0) {
+            // Submit answers
+            if (ctx->connected) {
+                // Build answer string
+                char answer_str[MAX_QUESTIONS + 1];
+                for (int i = 0; i < ctx->question_count; i++) {
+                    answer_str[i] = ctx->answers[i] ? ctx->answers[i] : '-';
+                }
+                answer_str[ctx->question_count] = '\0';
+                
+                client_send_message(ctx, "SUBMIT", answer_str);
+                strcpy(ctx->status_message, "Answers submitted!");
+            }
+        }
+    } else if (input == KEY_LEFT) {
+        if (ctx->current_question > 0) {
+            ctx->current_question--;
+            selected_option = -1;
+        }
+    } else if (input == KEY_RIGHT) {
+        if (ctx->current_question < ctx->question_count - 1) {
+            ctx->current_question++;
+            selected_option = -1;
+        }
     } else if (input == KEY_UP) {
         if (scroll_offset > 0) scroll_offset--;
     } else if (input == KEY_DOWN) {
-        scroll_offset++; // Should check bounds
+        scroll_offset++;
+    } else if ((input == 'a' || input == 'A') && ctx->question_count > 0) {
+        ctx->answers[ctx->current_question] = 'A';
+        selected_option = 0;
+    } else if ((input == 'b' || input == 'B') && ctx->question_count > 0) {
+        ctx->answers[ctx->current_question] = 'B';
+        selected_option = 1;
+    } else if ((input == 'c' || input == 'C') && ctx->question_count > 0) {
+        ctx->answers[ctx->current_question] = 'C';
+        selected_option = 2;
+    } else if ((input == 'd' || input == 'D') && ctx->question_count > 0) {
+        ctx->answers[ctx->current_question] = 'D';
+        selected_option = 3;
     } else if (input == KEY_MOUSE) {
         MEVENT event;
         if (getmouse(&event) == OK) {
             if (event.bstate & BUTTON1_CLICKED) {
-                // Check sidebar clicks
-                if (event.x < getmaxx(stdscr)/5) {
-                    for (int i = 0; i < 10; ++i) {
-                        if (event.y == 7 + i) {
-                            current_question = i;
+                // Check sidebar clicks for question navigation
+                int sidebar_width = getmaxx(stdscr) / 4;
+                if (event.x < sidebar_width) {
+                    for (int i = 0; i < ctx->question_count; ++i) {
+                        if (event.y == 12 + i) {
+                            ctx->current_question = i;
+                            selected_option = -1;
                             break;
                         }
                     }

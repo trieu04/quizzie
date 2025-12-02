@@ -11,22 +11,29 @@ void page_result_draw(ClientContext* ctx) {
 
     // Title
     attron(A_BOLD);
-    mvprintw(row/2 - 8, (col - 20)/2, "QUIZ RESULTS");
+    mvprintw(row/2 - 10, (col - 20)/2, "QUIZ RESULTS");
     attroff(A_BOLD);
     
     // Score display
-    mvprintw(row/2 - 4, (col - 30)/2, "Your Score:");
+    mvprintw(row/2 - 6, (col - 30)/2, "Your Score:");
     
     attron(A_BOLD);
     char score_str[32];
     snprintf(score_str, sizeof(score_str), "%d / %d", ctx->score, ctx->total_questions);
-    mvprintw(row/2 - 2, (col - strlen(score_str))/2, "%s", score_str);
+    mvprintw(row/2 - 4, (col - strlen(score_str))/2, "%s", score_str);
     attroff(A_BOLD);
     
     // Percentage
     float percentage = ctx->total_questions > 0 ? 
                        (float)ctx->score / ctx->total_questions * 100 : 0;
-    mvprintw(row/2, (col - 20)/2, "Percentage: %.1f%%", percentage);
+    mvprintw(row/2 - 2, (col - 20)/2, "Percentage: %.1f%%", percentage);
+    
+    // Time taken
+    if (ctx->time_taken > 0) {
+        int mins = ctx->time_taken / 60;
+        int secs = ctx->time_taken % 60;
+        mvprintw(row/2, (col - 25)/2, "Time taken: %02d:%02d", mins, secs);
+    }
     
     // Message based on score
     const char* message;
@@ -65,6 +72,9 @@ void page_result_handle_input(ClientContext* ctx, int input) {
         ctx->score = 0;
         ctx->question_count = 0;
         ctx->current_question = 0;
+        ctx->quiz_start_time = 0;
+        ctx->time_taken = 0;
+        ctx->quiz_available = false;
         memset(ctx->answers, 0, sizeof(ctx->answers));
         ctx->status_message[0] = '\0';
         

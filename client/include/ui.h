@@ -26,4 +26,7 @@ void page_quiz_handle_input(ClientContext* ctx, int input);
 void page_result_draw(ClientContext* ctx);
 void page_result_handle_input(ClientContext* ctx, int input);
 
+void page_host_panel_draw(ClientContext* ctx);
+void page_host_panel_handle_input(ClientContext* ctx, int input);
+
 #endif // UI_H

@@ -14,5 +14,6 @@ Room* room_find_by_host_username(ServerContext* ctx, const char* username);
 void room_list(ServerContext* ctx, int client_sock);
 int room_rejoin_as_host(ServerContext* ctx, int client_sock, const char* username);
 int room_set_config(ServerContext* ctx, int host_sock, const char* config);
+int room_delete(ServerContext* ctx, int room_id);
 
 #endif // ROOM_H

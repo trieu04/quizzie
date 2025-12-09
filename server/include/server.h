@@ -48,6 +48,7 @@ typedef struct ServerContext {
     Room rooms[MAX_ROOMS];
     int client_count;
     int room_count;
+    int next_room_id;  // Room ID counter
     bool running;
 } ServerContext;
 

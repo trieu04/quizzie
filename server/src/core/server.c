@@ -96,6 +96,8 @@ void server_run(ServerContext* ctx) {
                     memset(&msg, 0, sizeof(msg));
                     parse_message(buffer, msg.type, msg.data);
                     
+                    printf("[TCP] Processing message type: %s from fd=%d\n", msg.type, fd);
+                    
                     if (strcmp(msg.type, "CREATE_ROOM") == 0) {
                         // Format: CREATE_ROOM:username,duration,filename or CREATE_ROOM:username
                         char username[50] = "";

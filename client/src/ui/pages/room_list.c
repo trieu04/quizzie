@@ -1,220 +1,219 @@
 #include "ui.h"
 #include "net.h"
-#include <ncurses.h>
+#include <gtk/gtk.h>
 #include <string.h>
 #include <stdlib.h>
 
-static char room_id_input[16] = {0};
-static int mode = 0;         // 0: room list, 1: manual input
-static int selected_room = 0;
-static char error_message[64] = {0};
+static GtkWidget *status_label = NULL;
+static GtkWidget *room_list_box = NULL;
+static GtkWidget *room_id_entry = NULL;
 static bool list_requested = false;
 
-void page_room_list_draw(ClientContext* ctx) {
-    int row, col;
-    getmaxyx(stdscr, row, col);
-
-    // Title
-    attron(A_BOLD);
-    if (mode == 0) {
-        mvprintw(2, (col - 20)/2, "AVAILABLE ROOMS");
-    } else {
-        mvprintw(2, (col - 20)/2, "JOIN BY ROOM ID");
-    }
-    attroff(A_BOLD);
+static void on_join_room_clicked(GtkWidget *widget, gpointer data) {
+    int room_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "room_id"));
+    bool is_my_room = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "is_my_room"));
+    ClientContext* ctx = (ClientContext*)data;
     
-    // Status message
-    if (strlen(ctx->status_message) > 0) {
-        mvprintw(4, (col - strlen(ctx->status_message))/2, "%s", ctx->status_message);
-    }
-
-    if (mode == 0) {
-        // Room list mode
-        if (ctx->room_count == 0) {
-            mvprintw(row/2 - 2, (col - 40)/2, "No rooms available. Press 'M' for manual input.");
-        } else {
-            // Table header
-            int table_x = (col - 60) / 2;
-            if (table_x < 2) table_x = 2;
-            
-            attron(A_BOLD);
-            mvprintw(6, table_x, "%-6s %-20s %-10s %-12s %-10s", 
-                "ID", "Host", "Players", "Status", "");
-            attroff(A_BOLD);
-            mvhline(7, table_x, ACS_HLINE, 60);
-            
-            // Room list
-            int max_display = row - 14;
-            if (max_display > ctx->room_count) max_display = ctx->room_count;
-            
-            for (int i = 0; i < max_display; i++) {
-                RoomInfo* r = &ctx->rooms[i];
-                
-                if (i == selected_room) attron(A_REVERSE);
-                
-                const char* state_str = "Waiting";
-                if (r->state == 1) state_str = "In Progress";
-                else if (r->state == 2) state_str = "Finished";
-                
-                const char* host_marker = r->is_my_room ? "(You)" : "";
-                
-                mvprintw(8 + i, table_x, "%-6d %-20s %-10d %-12s %-10s", 
-                    r->id, r->host_username, r->player_count, state_str, host_marker);
-                
-                if (i == selected_room) attroff(A_REVERSE);
-            }
-        }
-        
-        // Help text
-        mvprintw(row - 4, 2, "UP/DOWN: Select | ENTER: Join Room | R: Refresh");
-        mvprintw(row - 3, 2, "H: Rejoin as Host (if your room) | M: Manual input | ESC: Back");
-    } else {
-        // Manual input mode
-        mvprintw(row/2 - 4, (col - 50)/2, "Enter the Room ID to join:");
-        
-        mvprintw(row/2 - 1, (col - 30)/2, "Room ID: ");
-        attron(A_REVERSE);
-        mvprintw(row/2 - 1, (col - 30)/2 + 10, "%-10s", room_id_input);
-        attroff(A_REVERSE);
-        
-        mvprintw(row/2 + 2, (col - 30)/2, "Press ENTER to join, ESC to go back");
+    if (!ctx->connected) {
+        strcpy(ctx->status_message, "Not connected to server!");
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        return;
     }
     
-    // Error message
-    if (strlen(error_message) > 0) {
-        attron(A_BOLD);
-        mvprintw(row - 6, (col - strlen(error_message))/2, "%s", error_message);
-        attroff(A_BOLD);
+    if (is_my_room) {
+        // Rejoin as host
+        client_send_message(ctx, "REJOIN_HOST", ctx->username);
+        strcpy(ctx->status_message, "Rejoining as host...");
+    } else {
+        // Join as participant
+        char msg[100];
+        sprintf(msg, "%d,%s", room_id, ctx->username);
+        client_send_message(ctx, "JOIN_ROOM", msg);
+        ctx->current_room_id = room_id;
+        sprintf(ctx->status_message, "Joining room %d...", room_id);
     }
-
-    mvprintw(row - 2, 2, "F10: Quit");
+    
+    if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    // Don't reset list_requested here - let server response handle navigation
 }
 
-void page_room_list_handle_input(ClientContext* ctx, int input) {
-    // Request room list when first entering page
+static void on_join_by_id_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    const char* room_id_str = gtk_entry_get_text(GTK_ENTRY(room_id_entry));
+    if (strlen(room_id_str) == 0) {
+        strcpy(ctx->status_message, "Please enter a Room ID!");
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        return;
+    }
+    
+    int room_id = atoi(room_id_str);
+    if (room_id <= 0) {
+        strcpy(ctx->status_message, "Invalid Room ID!");
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        return;
+    }
+    
+    if (!ctx->connected) {
+        strcpy(ctx->status_message, "Not connected to server!");
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        return;
+    }
+    
+    char msg[100];
+    sprintf(msg, "%d,%s", room_id, ctx->username);
+    client_send_message(ctx, "JOIN_ROOM", msg);
+    ctx->current_room_id = room_id;
+    sprintf(ctx->status_message, "Joining room %d...", room_id);
+    if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    
+    gtk_entry_set_text(GTK_ENTRY(room_id_entry), "");
+    // Don't reset list_requested here - let server response handle navigation
+}
+
+static void on_refresh_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->connected) {
+        client_send_message(ctx, "LIST_ROOMS", "");
+        strcpy(ctx->status_message, "Refreshing...");
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    }
+}
+
+static void on_back_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    list_requested = false;
+    ctx->status_message[0] = '\0';
+    ctx->current_state = PAGE_DASHBOARD;
+    ui_navigate_to_page(PAGE_DASHBOARD);
+}
+
+static void update_room_list(ClientContext* ctx) {
+    if (!room_list_box) return;
+    
+    // Clear existing items
+    GList *children = gtk_container_get_children(GTK_CONTAINER(room_list_box));
+    for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
+        gtk_widget_destroy(GTK_WIDGET(iter->data));
+    }
+    g_list_free(children);
+    
+    if (ctx->room_count == 0) {
+        GtkWidget *label = gtk_label_new("No rooms available");
+        gtk_box_pack_start(GTK_BOX(room_list_box), label, FALSE, FALSE, 5);
+        gtk_widget_show_all(room_list_box);
+        return;
+    }
+    
+    // Add rooms
+    for (int i = 0; i < ctx->room_count; i++) {
+        RoomInfo* r = &ctx->rooms[i];
+        
+        GtkWidget *room_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_widget_set_margin_start(room_row, 5);
+        gtk_widget_set_margin_end(room_row, 5);
+        gtk_widget_set_margin_top(room_row, 3);
+        gtk_widget_set_margin_bottom(room_row, 3);
+        
+        char room_info[256];
+        const char* state_str = r->state == 0 ? "Waiting" : 
+                               r->state == 1 ? "In Progress" : "Finished";
+        const char* host_marker = r->is_my_room ? " (You)" : "";
+        
+        snprintf(room_info, sizeof(room_info), "Room %d | Host: %s%s | Players: %d | %s",
+                 r->id, r->host_username, host_marker, r->player_count, state_str);
+        
+        GtkWidget *label = gtk_label_new(room_info);
+        gtk_widget_set_halign(label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(room_row), label, TRUE, TRUE, 0);
+        
+        GtkWidget *join_btn = gtk_button_new_with_label(r->is_my_room ? "Rejoin as Host" : "Join");
+        g_object_set_data(G_OBJECT(join_btn), "room_id", GINT_TO_POINTER(r->id));
+        g_object_set_data(G_OBJECT(join_btn), "is_my_room", GINT_TO_POINTER(r->is_my_room));
+        g_signal_connect(join_btn, "clicked", G_CALLBACK(on_join_room_clicked), ctx);
+        gtk_box_pack_start(GTK_BOX(room_row), join_btn, FALSE, FALSE, 0);
+        
+        gtk_box_pack_start(GTK_BOX(room_list_box), room_row, FALSE, FALSE, 0);
+    }
+    
+    gtk_widget_show_all(room_list_box);
+}
+
+GtkWidget* page_room_list_create(ClientContext* ctx) {
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_margin_start(page, 20);
+    gtk_widget_set_margin_end(page, 20);
+    gtk_widget_set_margin_top(page, 20);
+    gtk_widget_set_margin_bottom(page, 20);
+    
+    // Title
+    GtkWidget *title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(title), "<span size='x-large' weight='bold'>AVAILABLE ROOMS</span>");
+    gtk_box_pack_start(GTK_BOX(page), title, FALSE, FALSE, 10);
+    
+    // Status label
+    status_label = gtk_label_new(ctx->status_message);
+    gtk_box_pack_start(GTK_BOX(page), status_label, FALSE, FALSE, 5);
+    
+    // Toolbar
+    GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    
+    GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh");
+    g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), ctx);
+    gtk_box_pack_start(GTK_BOX(toolbar), refresh_btn, FALSE, FALSE, 0);
+    
+    GtkWidget *back_btn = gtk_button_new_with_label("Back to Dashboard");
+    g_signal_connect(back_btn, "clicked", G_CALLBACK(on_back_clicked), ctx);
+    gtk_box_pack_end(GTK_BOX(toolbar), back_btn, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(page), toolbar, FALSE, FALSE, 5);
+    
+    // Room list in scrolled window
+    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_size_request(scrolled, -1, 300);
+    
+    room_list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_add(GTK_CONTAINER(scrolled), room_list_box);
+    gtk_box_pack_start(GTK_BOX(page), scrolled, TRUE, TRUE, 0);
+    
+    // Manual join section
+    GtkWidget *manual_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    GtkWidget *manual_label = gtk_label_new("Join by Room ID:");
+    room_id_entry = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(room_id_entry), "Enter room ID");
+    gtk_widget_set_size_request(room_id_entry, 150, -1);
+    
+    GtkWidget *join_btn = gtk_button_new_with_label("Join");
+    g_signal_connect(join_btn, "clicked", G_CALLBACK(on_join_by_id_clicked), ctx);
+    
+    gtk_box_pack_start(GTK_BOX(manual_box), manual_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(manual_box), room_id_entry, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(manual_box), join_btn, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(page), manual_box, FALSE, FALSE, 10);
+    
+    // Request room list
     if (!list_requested && ctx->connected) {
         client_send_message(ctx, "LIST_ROOMS", "");
         list_requested = true;
         strcpy(ctx->status_message, "Loading rooms...");
     }
+    
+    update_room_list(ctx);
+    
+    return page;
+}
 
-    if (mode == 0) {
-        // Room list mode
-        if (input == KEY_UP) {
-            if (ctx->room_count > 0) {
-                selected_room = (selected_room - 1 + ctx->room_count) % ctx->room_count;
-            }
-        } else if (input == KEY_DOWN) {
-            if (ctx->room_count > 0) {
-                selected_room = (selected_room + 1) % ctx->room_count;
-            }
-        } else if (input == 27) { // ESC
-            error_message[0] = '\0';
-            room_id_input[0] = '\0';
-            list_requested = false;
-            selected_room = 0;
-            ctx->status_message[0] = '\0';
-            ctx->current_state = PAGE_DASHBOARD;
-        } else if (input == 'r' || input == 'R') {
-            // Refresh room list
-            if (ctx->connected) {
-                client_send_message(ctx, "LIST_ROOMS", "");
-                strcpy(ctx->status_message, "Refreshing...");
-            }
-        } else if (input == 'm' || input == 'M') {
-            // Switch to manual input mode
-            mode = 1;
-            room_id_input[0] = '\0';
-            error_message[0] = '\0';
-        } else if (input == 'h' || input == 'H') {
-            // Rejoin as host
-            if (ctx->room_count > 0 && selected_room < ctx->room_count) {
-                RoomInfo* r = &ctx->rooms[selected_room];
-                if (r->is_my_room) {
-                    if (ctx->connected) {
-                        client_send_message(ctx, "REJOIN_HOST", ctx->username);
-                        strcpy(ctx->status_message, "Rejoining as host...");
-                        error_message[0] = '\0';
-                        list_requested = false;
-                    }
-                } else {
-                    strcpy(error_message, "You are not the host of this room!");
-                }
-            }
-        } else if (input == '\n' || input == KEY_ENTER) {
-            // Join selected room
-            if (ctx->room_count > 0 && selected_room < ctx->room_count) {
-                RoomInfo* r = &ctx->rooms[selected_room];
-                
-                if (r->is_my_room) {
-                    // Rejoin as host
-                    if (ctx->connected) {
-                        client_send_message(ctx, "REJOIN_HOST", ctx->username);
-                        strcpy(ctx->status_message, "Rejoining as host...");
-                        error_message[0] = '\0';
-                        list_requested = false;
-                    }
-                } else {
-                    // Join as participant
-                    if (!ctx->connected) {
-                        strcpy(error_message, "Not connected to server!");
-                        return;
-                    }
-                    
-                    char data[100];
-                    sprintf(data, "%d,%s", r->id, ctx->username);
-                    client_send_message(ctx, "JOIN_ROOM", data);
-                    ctx->current_room_id = r->id;
-                    sprintf(ctx->status_message, "Joining room %d...", r->id);
-                    error_message[0] = '\0';
-                    list_requested = false;
-                }
-            } else {
-                strcpy(error_message, "No room selected!");
-            }
-        }
-    } else {
-        // Manual input mode
-        if (input == 27) { // ESC
-            mode = 0;
-            room_id_input[0] = '\0';
-            error_message[0] = '\0';
-        } else if (input == '\n' || input == KEY_ENTER) {
-            if (strlen(room_id_input) == 0) {
-                strcpy(error_message, "Please enter a Room ID!");
-                return;
-            }
-            
-            int room_id = atoi(room_id_input);
-            if (room_id <= 0) {
-                strcpy(error_message, "Invalid Room ID!");
-                return;
-            }
-            
-            if (!ctx->connected) {
-                strcpy(error_message, "Not connected to server!");
-                return;
-            }
-            
-            char data[100];
-            sprintf(data, "%d,%s", room_id, ctx->username);
-            client_send_message(ctx, "JOIN_ROOM", data);
-            ctx->current_room_id = room_id;
-            sprintf(ctx->status_message, "Joining room %d...", room_id);
-            error_message[0] = '\0';
-            room_id_input[0] = '\0';
-            mode = 0;
-            list_requested = false;
-        } else if (input == KEY_BACKSPACE || input == 127) {
-            if (strlen(room_id_input) > 0) {
-                room_id_input[strlen(room_id_input) - 1] = '\0';
-            }
-        } else if (input >= '0' && input <= '9') {
-            if (strlen(room_id_input) < 10) {
-                size_t len = strlen(room_id_input);
-                room_id_input[len] = input;
-                room_id_input[len + 1] = '\0';
-            }
-        }
+void page_room_list_update(ClientContext* ctx) {
+    update_room_list(ctx);
+    
+    if (status_label && strlen(ctx->status_message) > 0) {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
     }
 }

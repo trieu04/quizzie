@@ -2,22 +2,21 @@
 #include "ui.h"
 #include "net.h"
 
-int main() {
+int main(int argc, char **argv) {
     ClientContext* ctx = client_init();
     if (!ctx) {
-        LOG_ERROR("Failed to initialize client context");
+        fprintf(stderr, "Failed to initialize client context\n");
         return EXIT_FAILURE;
     }
 
-    // Initialize UI
-    ui_init();
+    // Initialize UI with GTK
+    ui_init(&argc, &argv);
 
-    // Connect to server (optional at startup, can be done later)
-    // For now, we just log it to UI
-    ui_show_message("Welcome to Quizzie Client!");
-
-    // Main loop
+    // Initialize client state
     client_run(ctx);
+
+    // Run UI (GTK main loop)
+    ui_run(ctx);
 
     // Cleanup
     ui_cleanup();

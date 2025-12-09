@@ -1,7 +1,6 @@
 #include "client.h"
 #include "ui.h"
 #include "net.h"
-#include <ncurses.h>
 #include <string.h>
 #include <time.h>
 
@@ -57,8 +56,7 @@ int client_send_message(ClientContext* ctx, const char* type, const char* data) 
 }
 
 // Parse questions received from server
-// New format: "duration;Q1?A.opt|B.opt|C.opt|D.opt;Q2?A.opt|B.opt|C.opt|D.opt;..."
-// Or old format: "Q1?A.opt|B.opt|C.opt|D.opt;Q2?A.opt|B.opt|C.opt|D.opt;..."
+// Format "duration;Q1?A.opt|B.opt|C.opt|D.opt;Q2?A.opt|B.opt|C.opt|D.opt;..."
 static void parse_questions(ClientContext* ctx, const char* data) {
     ctx->question_count = 0;
     memset(ctx->questions, 0, sizeof(ctx->questions));
@@ -101,7 +99,7 @@ static void parse_questions(ClientContext* ctx, const char* data) {
             q->question[q_len] = '\0';
 
             // Parse options after '?'
-            char* options_str = question_mark + 1;
+            char* options_str = question_mark + 2;
             char options_copy[512];
             strncpy(options_copy, options_str, sizeof(options_copy) - 1);
             options_copy[sizeof(options_copy) - 1] = '\0';
@@ -111,7 +109,12 @@ static void parse_questions(ClientContext* ctx, const char* data) {
             char* opt_token = strtok_r(options_copy, "|", &saveptr2);
             int opt_idx = 0;
             while (opt_token && opt_idx < 4) {
-                strncpy(q->options[opt_idx], opt_token, sizeof(q->options[opt_idx]) - 1);
+                // Trim ?A., ?B., etc. if present
+                if (strlen(opt_token) > 2 && opt_token[1] == '.') {
+                    strncpy(q->options[opt_idx], opt_token + 2, sizeof(q->options[opt_idx]) - 1);
+                } else {
+                    strncpy(q->options[opt_idx], opt_token, sizeof(q->options[opt_idx]) - 1);
+                }
                 opt_idx++;
                 opt_token = strtok_r(NULL, "|", &saveptr2);
             }
@@ -267,7 +270,7 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         ctx->is_host = false;
         snprintf(ctx->status_message, sizeof(ctx->status_message),
             "Joined room %d! %s", ctx->current_room_id,
-            ctx->quiz_available ? "Press 'S' to start your quiz!" : "Waiting for host to start...");
+            ctx->quiz_available ? "Click 'Start Quiz' to begin!" : "Waiting for host to start...");
         ctx->current_state = PAGE_QUIZ;
     }
     else if (strcmp(type, "QUIZ_AVAILABLE") == 0) {
@@ -278,7 +281,10 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         }
         ctx->room_state = QUIZ_STATE_STARTED;
         snprintf(ctx->status_message, sizeof(ctx->status_message),
-            "Quiz is ready! Press 'S' to start (%d seconds)", ctx->quiz_duration);
+            "Quiz is ready! Click 'Start Quiz' to begin (%d seconds)", ctx->quiz_duration);
+        // Navigate to quiz page to show start button (force refresh)
+        ctx->current_state = PAGE_QUIZ;
+        ctx->force_page_refresh = true;
     }
     else if (strcmp(type, "QUIZ_STARTED") == 0) {
         // Confirmation for host that quiz has started
@@ -291,7 +297,9 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         // Client receives questions after pressing start
         parse_questions(ctx, data);
         ctx->quiz_start_time = time(NULL);
+        // Force page navigation to refresh quiz UI with questions
         ctx->current_state = PAGE_QUIZ;
+        ctx->force_page_refresh = true;
         snprintf(ctx->status_message, sizeof(ctx->status_message),
             "Quiz started! %d questions, %d seconds", ctx->question_count, ctx->quiz_duration);
     }
@@ -381,79 +389,8 @@ int client_receive_message(ClientContext* ctx) {
 }
 
 void client_run(ClientContext* ctx) {
-    // Simple event loop
-    // Uses non-blocking receive to check for server messages while handling UI input
-
+    // GTK handles the main event loop
+    // Navigation and updates are managed through UI callbacks and timers
     ctx->current_state = PAGE_LOGIN;
-
-    while (ctx->running) {
-        // Check for server messages if connected
-        if (ctx->connected) {
-            client_receive_message(ctx);
-        }
-
-        // Clear screen at start of frame
-        erase();
-
-        // Dispatch draw based on state
-        switch (ctx->current_state) {
-        case PAGE_LOGIN:
-            page_login_draw(ctx);
-            break;
-        case PAGE_DASHBOARD:
-            page_dashboard_draw(ctx);
-            break;
-        case PAGE_ROOM_LIST:
-            page_room_list_draw(ctx);
-            break;
-        case PAGE_QUIZ:
-            page_quiz_draw(ctx);
-            break;
-        case PAGE_RESULT:
-            page_result_draw(ctx);
-            break;
-        case PAGE_HOST_PANEL:
-            page_host_panel_draw(ctx);
-            break;
-        }
-
-        refresh();
-
-        // Get input with timeout so we can check for server messages
-        timeout(100); // 100ms timeout for getch
-        int ch = ui_get_input();
-
-        if (ch == ERR) {
-            // No input, continue to check server messages
-            continue;
-        }
-
-        // Global keys
-        if (ch == KEY_F(10)) {
-            ctx->running = false;
-            continue;
-        }
-
-        // Dispatch input based on state
-        switch (ctx->current_state) {
-        case PAGE_LOGIN:
-            page_login_handle_input(ctx, ch);
-            break;
-        case PAGE_DASHBOARD:
-            page_dashboard_handle_input(ctx, ch);
-            break;
-        case PAGE_ROOM_LIST:
-            page_room_list_handle_input(ctx, ch);
-            break;
-        case PAGE_QUIZ:
-            page_quiz_handle_input(ctx, ch);
-            break;
-        case PAGE_RESULT:
-            page_result_handle_input(ctx, ch);
-            break;
-        case PAGE_HOST_PANEL:
-            page_host_panel_handle_input(ctx, ch);
-            break;
-        }
-    }
+    ctx->running = true;
 }

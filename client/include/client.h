@@ -56,6 +56,7 @@ typedef struct ClientContext {
     bool running;
     bool connected;
     AppState current_state;
+    bool force_page_refresh;     // Force page navigation even if state unchanged
     
     // User state
     char username[32];

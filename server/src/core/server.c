@@ -14,6 +14,7 @@ ServerContext* server_init() {
     ctx->epoll_fd = -1;
     ctx->client_count = 0;
     ctx->room_count = 0;
+    ctx->next_room_id = 1;
     ctx->running = true;
     return ctx;
 }
@@ -138,6 +139,13 @@ void server_run(ServerContext* ctx) {
                         room_rejoin_as_host(ctx, fd, msg.data);
                     } else if (strcmp(msg.type, "SUBMIT") == 0) {
                         room_submit_answers(ctx, fd, msg.data);
+                    } else if (strcmp(msg.type, "DELETE_ROOM") == 0) {
+                        int room_id = atoi(msg.data);
+                        if (room_delete(ctx, room_id) == 0) {
+                            net_send_to_client(fd, "ROOM_DELETED:Success", 20);
+                        } else {
+                            net_send_to_client(fd, "ERROR:Room not found", 20);
+                        }
                     }
                 } else {
                     // Client disconnect

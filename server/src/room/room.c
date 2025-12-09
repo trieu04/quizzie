@@ -107,17 +107,14 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
         return -1;
     }
 
-    // Check if user already has a room - return error instead of auto-rejoining
+    // Check if user already has a room - delete the old one first
     Room* existing = room_find_by_host_username(ctx, username);
     if (existing) {
-        char response[128];
-        sprintf(response, "ERROR:You already have a room (ID: %d). Use View Rooms to rejoin.", existing->id);
-        net_send_to_client(host_sock, response, strlen(response));
-        return -1;
+        room_delete(ctx, existing->id);
     }
 
     Room* room = &ctx->rooms[ctx->room_count];
-    room->id = ctx->room_count + 1;
+    room->id = ctx->next_room_id++;  // Use unique incremental ID
     room->host_sock = host_sock;
     strncpy(room->host_username, username, sizeof(room->host_username) - 1);
     room->client_count = 0;  // Host is not counted as participant
@@ -262,6 +259,17 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
 
             Client* client = find_client(ctx, client_sock);
             if (client) {
+                // Check if client is already in this room (prevent duplicates)
+                for (int j = 0; j < room->client_count; j++) {
+                    if (room->clients[j] == client) {
+                        // Already in room, just send confirmation
+                        char response[100];
+                        sprintf(response, "JOINED:%d,%d,%d", room_id, room->quiz_duration, room->state);
+                        net_send_to_client(client_sock, response, strlen(response));
+                        return 0;
+                    }
+                }
+                
                 strncpy(client->username, username, sizeof(client->username) - 1);
                 client->is_taking_quiz = false;
                 client->has_submitted = false;
@@ -478,4 +486,29 @@ int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers
     
     LOG_INFO("Answers submitted and scored");
     return 0;
+}
+
+int room_delete(ServerContext* ctx, int room_id) {
+    for (int i = 0; i < ctx->room_count; i++) {
+        if (ctx->rooms[i].id == room_id) {
+            Room* room = &ctx->rooms[i];
+            
+            // Notify all participants that room is closing
+            for (int j = 0; j < room->client_count; j++) {
+                if (room->clients[j]) {
+                    net_send_to_client(room->clients[j]->sock, "ERROR:Room has been deleted", 27);
+                }
+            }
+            
+            // Shift remaining rooms down
+            for (int j = i; j < ctx->room_count - 1; j++) {
+                ctx->rooms[j] = ctx->rooms[j + 1];
+            }
+            ctx->room_count--;
+            
+            LOG_INFO("Room deleted");
+            return 0;
+        }
+    }
+    return -1;
 }

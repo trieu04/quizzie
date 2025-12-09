@@ -1,38 +1,87 @@
 #include "ui.h"
 #include "net.h"
-#include <ncurses.h>
+#include <gtk/gtk.h>
 #include <string.h>
 
-static int selected_option = 0; // 0: Play Again, 1: Back to Dashboard
+static void on_play_again_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    // Reset quiz state
+    ctx->score = 0;
+    ctx->question_count = 0;
+    ctx->current_question = 0;
+    ctx->quiz_start_time = 0;
+    ctx->time_taken = 0;
+    ctx->quiz_available = false;
+    memset(ctx->answers, 0, sizeof(ctx->answers));
+    ctx->status_message[0] = '\0';
+    ctx->current_room_id = -1;
+    ctx->current_state = PAGE_ROOM_LIST;
+    
+    ui_navigate_to_page(PAGE_ROOM_LIST);
+}
 
-void page_result_draw(ClientContext* ctx) {
-    int row, col;
-    getmaxyx(stdscr, row, col);
+static void on_dashboard_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    // Reset quiz state
+    ctx->score = 0;
+    ctx->question_count = 0;
+    ctx->current_question = 0;
+    ctx->quiz_start_time = 0;
+    ctx->time_taken = 0;
+    ctx->quiz_available = false;
+    memset(ctx->answers, 0, sizeof(ctx->answers));
+    ctx->status_message[0] = '\0';
+    ctx->current_room_id = -1;
+    ctx->is_host = false;
+    ctx->current_state = PAGE_DASHBOARD;
+    
+    ui_navigate_to_page(PAGE_DASHBOARD);
+}
 
+GtkWidget* page_result_create(ClientContext* ctx) {
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 20);
+    gtk_widget_set_halign(page, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(page, GTK_ALIGN_CENTER);
+    
     // Title
-    attron(A_BOLD);
-    mvprintw(row/2 - 10, (col - 20)/2, "QUIZ RESULTS");
-    attroff(A_BOLD);
+    GtkWidget *title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold'>QUIZ RESULTS</span>");
+    gtk_box_pack_start(GTK_BOX(page), title, FALSE, FALSE, 10);
     
-    // Score display
-    mvprintw(row/2 - 6, (col - 30)/2, "Your Score:");
+    // Score label
+    GtkWidget *score_title = gtk_label_new("Your Score:");
+    gtk_box_pack_start(GTK_BOX(page), score_title, FALSE, FALSE, 5);
     
-    attron(A_BOLD);
-    char score_str[32];
+    // Score value
+    char score_str[64];
     snprintf(score_str, sizeof(score_str), "%d / %d", ctx->score, ctx->total_questions);
-    mvprintw(row/2 - 4, (col - strlen(score_str))/2, "%s", score_str);
-    attroff(A_BOLD);
+    GtkWidget *score_label = gtk_label_new(NULL);
+    char score_markup[128];
+    snprintf(score_markup, sizeof(score_markup), 
+             "<span size='xx-large' weight='bold'>%s</span>", score_str);
+    gtk_label_set_markup(GTK_LABEL(score_label), score_markup);
+    gtk_box_pack_start(GTK_BOX(page), score_label, FALSE, FALSE, 0);
     
     // Percentage
     float percentage = ctx->total_questions > 0 ? 
                        (float)ctx->score / ctx->total_questions * 100 : 0;
-    mvprintw(row/2 - 2, (col - 20)/2, "Percentage: %.1f%%", percentage);
+    char percent_str[64];
+    snprintf(percent_str, sizeof(percent_str), "Percentage: %.1f%%", percentage);
+    GtkWidget *percent_label = gtk_label_new(percent_str);
+    gtk_box_pack_start(GTK_BOX(page), percent_label, FALSE, FALSE, 5);
     
     // Time taken
     if (ctx->time_taken > 0) {
         int mins = ctx->time_taken / 60;
         int secs = ctx->time_taken % 60;
-        mvprintw(row/2, (col - 25)/2, "Time taken: %02d:%02d", mins, secs);
+        char time_str[64];
+        snprintf(time_str, sizeof(time_str), "Time taken: %02d:%02d", mins, secs);
+        GtkWidget *time_label = gtk_label_new(time_str);
+        gtk_box_pack_start(GTK_BOX(page), time_label, FALSE, FALSE, 0);
     }
     
     // Message based on score
@@ -46,48 +95,30 @@ void page_result_draw(ClientContext* ctx) {
     } else {
         message = "Keep practicing!";
     }
-    mvprintw(row/2 + 2, (col - strlen(message))/2, "%s", message);
+    GtkWidget *message_label = gtk_label_new(message);
+    gtk_box_pack_start(GTK_BOX(page), message_label, FALSE, FALSE, 15);
     
-    // Options
-    int menu_y = row/2 + 5;
+    // Buttons
+    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_size_request(button_box, 200, -1);
     
-    if (selected_option == 0) attron(A_REVERSE);
-    mvprintw(menu_y, (col - 20)/2, "[ Play Again ]");
-    if (selected_option == 0) attroff(A_REVERSE);
+    GtkWidget *play_again_btn = gtk_button_new_with_label("Play Again");
+    gtk_widget_set_size_request(play_again_btn, -1, 50);
+    g_signal_connect(play_again_btn, "clicked", G_CALLBACK(on_play_again_clicked), ctx);
+    gtk_box_pack_start(GTK_BOX(button_box), play_again_btn, FALSE, FALSE, 0);
     
-    if (selected_option == 1) attron(A_REVERSE);
-    mvprintw(menu_y + 2, (col - 20)/2, "[ Dashboard ]");
-    if (selected_option == 1) attroff(A_REVERSE);
-
-    mvprintw(row - 2, 2, "UP/DOWN: Select | ENTER: Confirm | F10: Quit");
+    GtkWidget *dashboard_btn = gtk_button_new_with_label("Dashboard");
+    gtk_widget_set_size_request(dashboard_btn, -1, 50);
+    g_signal_connect(dashboard_btn, "clicked", G_CALLBACK(on_dashboard_clicked), ctx);
+    gtk_box_pack_start(GTK_BOX(button_box), dashboard_btn, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(page), button_box, FALSE, FALSE, 10);
+    
+    return page;
 }
 
-void page_result_handle_input(ClientContext* ctx, int input) {
-    if (input == KEY_UP) {
-        selected_option = (selected_option - 1 + 2) % 2;
-    } else if (input == KEY_DOWN) {
-        selected_option = (selected_option + 1) % 2;
-    } else if (input == '\n' || input == KEY_ENTER) {
-        // Reset quiz state
-        ctx->score = 0;
-        ctx->question_count = 0;
-        ctx->current_question = 0;
-        ctx->quiz_start_time = 0;
-        ctx->time_taken = 0;
-        ctx->quiz_available = false;
-        memset(ctx->answers, 0, sizeof(ctx->answers));
-        ctx->status_message[0] = '\0';
-        
-        if (selected_option == 0) {
-            // Play Again - go back to room list
-            ctx->current_room_id = -1;
-            ctx->current_state = PAGE_ROOM_LIST;
-        } else {
-            // Dashboard
-            ctx->current_room_id = -1;
-            ctx->is_host = false;
-            ctx->current_state = PAGE_DASHBOARD;
-        }
-        selected_option = 0;
-    }
+void page_result_update(ClientContext* ctx) {
+    // This function is called when still on result page
+    // Navigation is handled by ui.c
+    (void)ctx;
 }

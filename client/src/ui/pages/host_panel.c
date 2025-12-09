@@ -1,296 +1,387 @@
 #include "ui.h"
 #include "net.h"
-#include <ncurses.h>
+#include <gtk/gtk.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
 
-static int selected_option = 0;
-static int edit_mode = 0;  // 0: menu, 1: duration, 2: filename
-static char duration_input[16] = "";
-static char filename_input[64] = "";
+static GtkWidget *status_label = NULL;
+static GtkWidget *state_label = NULL;
+static GtkWidget *duration_entry = NULL;
+static GtkWidget *filename_entry = NULL;
+static GtkWidget *participant_list_box = NULL;
+static GtkWidget *stats_label = NULL;
+static GtkWidget *start_btn = NULL;
 static time_t last_stats_request = 0;
+static guint stats_timer_id = 0;
 
-void page_host_panel_draw(ClientContext* ctx) {
-    int row, col;
-    getmaxyx(stdscr, row, col);
-
-    // Sidebar (Left 30%)
-    int sidebar_width = col * 3 / 10;
-    for (int i = 0; i < row - 1; ++i) {
-        mvaddch(i, sidebar_width, ACS_VLINE);
-    }
-
-    // Sidebar content - Room Info
-    attron(A_BOLD);
-    mvprintw(1, 2, "HOST PANEL");
-    attroff(A_BOLD);
-
-    mvprintw(3, 2, "Room ID: %d", ctx->current_room_id);
-    mvprintw(4, 2, "Host: %s", ctx->username);
+static gboolean request_stats_periodically(gpointer data) {
+    ClientContext* ctx = (ClientContext*)data;
     
-    attron(A_BOLD);
-    mvprintw(6, 2, "Status:");
-    attroff(A_BOLD);
-    
-    const char* state_str = "Waiting";
-    if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
-    else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
-    mvprintw(7, 4, "%s", state_str);
-
-    // Config section
-    attron(A_BOLD);
-    mvprintw(9, 2, "Configuration:");
-    attroff(A_BOLD);
-    
-    if (edit_mode == 1) attron(A_REVERSE);
-    mvprintw(10, 4, "Duration: %d sec", ctx->quiz_duration);
-    if (edit_mode == 1) {
-        mvprintw(10, 4, "Duration: %s_", duration_input);
-    }
-    if (edit_mode == 1) attroff(A_REVERSE);
-    
-    if (edit_mode == 2) attron(A_REVERSE);
-    mvprintw(11, 4, "File: %.20s", ctx->question_file);
-    if (edit_mode == 2) {
-        mvprintw(11, 4, "File: %s_", filename_input);
-    }
-    if (edit_mode == 2) attroff(A_REVERSE);
-
-    // Menu options
-    int menu_y = 14;
-    attron(A_BOLD);
-    mvprintw(menu_y - 1, 2, "Actions:");
-    attroff(A_BOLD);
-    
-    if (edit_mode == 0) {
-        if (selected_option == 0) attron(A_REVERSE);
-        if (ctx->room_state == QUIZ_STATE_WAITING) {
-            mvprintw(menu_y, 4, "[S] Start Quiz");
-        } else {
-            mvprintw(menu_y, 4, "[R] Refresh Stats");
+    if (ctx->room_state == QUIZ_STATE_STARTED && ctx->connected) {
+        time_t now = time(NULL);
+        if (now - last_stats_request >= 2) {
+            client_send_message(ctx, "GET_STATS", "");
+            last_stats_request = now;
         }
-        if (selected_option == 0) attroff(A_REVERSE);
-
-        if (selected_option == 1) attron(A_REVERSE);
-        mvprintw(menu_y + 1, 4, "[D] Set Duration");
-        if (selected_option == 1) attroff(A_REVERSE);
-
-        if (selected_option == 2) attron(A_REVERSE);
-        mvprintw(menu_y + 2, 4, "[F] Set File");
-        if (selected_option == 2) attroff(A_REVERSE);
-
-        if (selected_option == 3) attron(A_REVERSE);
-        mvprintw(menu_y + 3, 4, "[Q] Leave Room");
-        if (selected_option == 3) attroff(A_REVERSE);
     }
+    
+    return G_SOURCE_CONTINUE;
+}
 
-    // Main Content (Right 70%)
-    int main_x = sidebar_width + 3;
-    int main_width = col - main_x - 2;
-
-    // Status message at top
-    if (strlen(ctx->status_message) > 0) {
-        mvprintw(1, main_x, "%.60s", ctx->status_message);
+static void update_participant_list(ClientContext* ctx) {
+    if (!participant_list_box) return;
+    
+    // Clear existing items
+    GList *children = gtk_container_get_children(GTK_CONTAINER(participant_list_box));
+    for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
+        gtk_widget_destroy(GTK_WIDGET(iter->data));
     }
-
-    // Statistics Header
-    attron(A_BOLD);
-    mvprintw(3, main_x, "PARTICIPANTS STATISTICS");
-    attroff(A_BOLD);
+    g_list_free(children);
     
-    mvhline(4, main_x, ACS_HLINE, main_width);
+    if (ctx->participant_count == 0) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "No participants yet. Share Room ID: %d", ctx->current_room_id);
+        GtkWidget *label = gtk_label_new(msg);
+        gtk_box_pack_start(GTK_BOX(participant_list_box), label, FALSE, FALSE, 5);
+        gtk_widget_show_all(participant_list_box);
+        return;
+    }
     
-    // Summary stats
-    mvprintw(5, main_x, "Waiting: %d | Taking: %d | Submitted: %d | Total: %d",
-        ctx->stats_waiting, ctx->stats_taking, ctx->stats_submitted,
-        ctx->stats_waiting + ctx->stats_taking + ctx->stats_submitted);
-
-    mvhline(6, main_x, ACS_HLINE, main_width);
-
-    // Participants table header
-    attron(A_BOLD);
-    mvprintw(7, main_x, "%-20s %-12s %-15s", "Username", "Status", "Info");
-    attroff(A_BOLD);
-    
-    mvhline(8, main_x, ACS_HLINE, main_width);
-
-    // Participants list
-    int y = 9;
-    int max_display = row - 14;
-    
-    for (int i = 0; i < ctx->participant_count && i < max_display; i++) {
+    for (int i = 0; i < ctx->participant_count; i++) {
         ParticipantInfo* p = &ctx->participants[i];
         
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_widget_set_margin_start(row, 5);
+        gtk_widget_set_margin_end(row, 5);
+        gtk_widget_set_margin_top(row, 3);
+        gtk_widget_set_margin_bottom(row, 3);
+        
         const char* status_str = "Waiting";
-        char info_str[32] = "";
+        char info_str[64] = "";
         
         if (p->status == 'T') {
             status_str = "Taking";
             int mins = p->remaining_time / 60;
             int secs = p->remaining_time % 60;
-            sprintf(info_str, "%02d:%02d left", mins, secs);
-            attron(COLOR_PAIR(2));  // Yellow/warning
+            snprintf(info_str, sizeof(info_str), "%02d:%02d left", mins, secs);
         } else if (p->status == 'S') {
             status_str = "Submitted";
-            sprintf(info_str, "%d/%d", p->score, p->total);
-            attron(COLOR_PAIR(1));  // Green/success
-        } else {
-            attron(COLOR_PAIR(3));  // Default
+            snprintf(info_str, sizeof(info_str), "%d/%d", p->score, p->total);
         }
         
-        mvprintw(y + i, main_x, "%-20s %-12s %-15s", p->username, status_str, info_str);
-        attroff(COLOR_PAIR(1));
-        attroff(COLOR_PAIR(2));
-        attroff(COLOR_PAIR(3));
+        char participant_info[256];
+        snprintf(participant_info, sizeof(participant_info), "%-20s | %-12s | %s",
+                 p->username, status_str, info_str);
+        
+        GtkWidget *label = gtk_label_new(participant_info);
+        gtk_widget_set_halign(label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), label, TRUE, TRUE, 0);
+        
+        gtk_box_pack_start(GTK_BOX(participant_list_box), row, FALSE, FALSE, 0);
     }
+    
+    gtk_widget_show_all(participant_list_box);
+}
 
-    if (ctx->participant_count == 0) {
-        mvprintw(y, main_x, "No participants yet. Share Room ID: %d", ctx->current_room_id);
-    }
-
-    // Footer
-    if (edit_mode == 0) {
-        mvprintw(row - 2, 2, "UP/DOWN: Select | ENTER: Action | ESC: Leave | F10: Quit");
-    } else {
-        mvprintw(row - 2, 2, "Type value then ENTER | ESC: Cancel");
+static void on_start_quiz_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->connected && ctx->room_state == QUIZ_STATE_WAITING) {
+        client_send_message(ctx, "START_GAME", "");
+        strcpy(ctx->status_message, "Starting quiz...");
+        if (status_label) {
+            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        }
     }
 }
 
-void page_host_panel_handle_input(ClientContext* ctx, int input) {
-    // Request stats periodically
-    time_t now = time(NULL);
-    if (ctx->room_state == QUIZ_STATE_STARTED && now - last_stats_request >= 2) {
-        if (ctx->connected) {
-            client_send_message(ctx, "GET_STATS", "");
-            last_stats_request = now;
+static void on_refresh_stats_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->connected) {
+        client_send_message(ctx, "GET_STATS", "");
+        strcpy(ctx->status_message, "Refreshing stats...");
+        if (status_label) {
+            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         }
+        last_stats_request = time(NULL);
     }
+}
 
-    if (edit_mode == 1) {
-        // Editing duration
-        if (input == 27) {  // ESC
-            edit_mode = 0;
-            duration_input[0] = '\0';
-        } else if (input == '\n' || input == KEY_ENTER) {
-            if (strlen(duration_input) > 0) {
-                ctx->quiz_duration = atoi(duration_input);
-                // Send config update to server
-                char config[128];
-                sprintf(config, "%d,%s", ctx->quiz_duration, ctx->question_file);
-                client_send_message(ctx, "SET_CONFIG", config);
-            }
-            edit_mode = 0;
-            duration_input[0] = '\0';
-        } else if (input == KEY_BACKSPACE || input == 127) {
-            size_t len = strlen(duration_input);
-            if (len > 0) duration_input[len - 1] = '\0';
-        } else if (input >= '0' && input <= '9' && strlen(duration_input) < 5) {
-            size_t len = strlen(duration_input);
-            duration_input[len] = input;
-            duration_input[len + 1] = '\0';
+static void on_set_duration_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->room_state != QUIZ_STATE_WAITING) {
+        strcpy(ctx->status_message, "Cannot change after quiz started");
+        if (status_label) {
+            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         }
         return;
     }
     
-    if (edit_mode == 2) {
-        // Editing filename
-        if (input == 27) {  // ESC
-            edit_mode = 0;
-            filename_input[0] = '\0';
-        } else if (input == '\n' || input == KEY_ENTER) {
-            if (strlen(filename_input) > 0) {
-                strncpy(ctx->question_file, filename_input, sizeof(ctx->question_file) - 1);
-                // Send config update to server
-                char config[128];
-                sprintf(config, "%d,%s", ctx->quiz_duration, ctx->question_file);
-                client_send_message(ctx, "SET_CONFIG", config);
-            }
-            edit_mode = 0;
-            filename_input[0] = '\0';
-        } else if (input == KEY_BACKSPACE || input == 127) {
-            size_t len = strlen(filename_input);
-            if (len > 0) filename_input[len - 1] = '\0';
-        } else if ((input >= 'a' && input <= 'z') || (input >= 'A' && input <= 'Z') ||
-                   (input >= '0' && input <= '9') || input == '.' || input == '_' || input == '-') {
-            if (strlen(filename_input) < 60) {
-                size_t len = strlen(filename_input);
-                filename_input[len] = input;
-                filename_input[len + 1] = '\0';
-            }
+    const char* duration_str = gtk_entry_get_text(GTK_ENTRY(duration_entry));
+    int duration = atoi(duration_str);
+    
+    if (duration > 0) {
+        ctx->quiz_duration = duration;
+        char config[128];
+        snprintf(config, sizeof(config), "%d,%s", ctx->quiz_duration, ctx->question_file);
+        client_send_message(ctx, "SET_CONFIG", config);
+        strcpy(ctx->status_message, "Duration updated");
+    } else {
+        strcpy(ctx->status_message, "Invalid duration");
+    }
+    
+    if (status_label) {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    }
+}
+
+static void on_set_file_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->room_state != QUIZ_STATE_WAITING) {
+        strcpy(ctx->status_message, "Cannot change after quiz started");
+        if (status_label) {
+            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         }
         return;
     }
+    
+    const char* filename = gtk_entry_get_text(GTK_ENTRY(filename_entry));
+    
+    if (strlen(filename) > 0) {
+        strncpy(ctx->question_file, filename, sizeof(ctx->question_file) - 1);
+        ctx->question_file[sizeof(ctx->question_file) - 1] = '\0';
+        
+        char config[128];
+        snprintf(config, sizeof(config), "%d,%s", ctx->quiz_duration, ctx->question_file);
+        client_send_message(ctx, "SET_CONFIG", config);
+        strcpy(ctx->status_message, "File updated");
+    } else {
+        strcpy(ctx->status_message, "Invalid filename");
+    }
+    
+    if (status_label) {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    }
+}
 
-    // Normal menu mode
-    if (input == KEY_UP) {
-        selected_option = (selected_option - 1 + 4) % 4;
-    } else if (input == KEY_DOWN) {
-        selected_option = (selected_option + 1) % 4;
-    } else if (input == 27) {  // ESC
-        // Leave room
+static void on_leave_room_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    ctx->current_room_id = -1;
+    ctx->is_host = false;
+    ctx->room_state = QUIZ_STATE_WAITING;
+    ctx->participant_count = 0;
+    ctx->current_state = PAGE_DASHBOARD;
+    
+    if (stats_timer_id > 0) {
+        g_source_remove(stats_timer_id);
+        stats_timer_id = 0;
+    }
+    
+    ui_navigate_to_page(PAGE_DASHBOARD);
+}
+
+static void on_delete_room_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    
+    if (ctx->connected && ctx->current_room_id > 0) {
+        char msg[32];
+        sprintf(msg, "%d", ctx->current_room_id);
+        client_send_message(ctx, "DELETE_ROOM", msg);
+        
         ctx->current_room_id = -1;
         ctx->is_host = false;
         ctx->room_state = QUIZ_STATE_WAITING;
         ctx->participant_count = 0;
         ctx->current_state = PAGE_DASHBOARD;
-    } else if (input == '\n' || input == KEY_ENTER) {
-        if (selected_option == 0) {
-            if (ctx->room_state == QUIZ_STATE_WAITING) {
-                // Start quiz
-                client_send_message(ctx, "START_GAME", "");
-                strcpy(ctx->status_message, "Starting quiz...");
-            } else {
-                // Refresh stats
-                client_send_message(ctx, "GET_STATS", "");
-                strcpy(ctx->status_message, "Refreshing stats...");
-            }
-        } else if (selected_option == 1) {
-            if (ctx->room_state == QUIZ_STATE_WAITING) {
-                edit_mode = 1;
-                sprintf(duration_input, "%d", ctx->quiz_duration);
-            } else {
-                strcpy(ctx->status_message, "Cannot change after quiz started");
-            }
-        } else if (selected_option == 2) {
-            if (ctx->room_state == QUIZ_STATE_WAITING) {
-                edit_mode = 2;
-                strncpy(filename_input, ctx->question_file, sizeof(filename_input) - 1);
-            } else {
-                strcpy(ctx->status_message, "Cannot change after quiz started");
-            }
-        } else if (selected_option == 3) {
-            // Leave room
-            ctx->current_room_id = -1;
-            ctx->is_host = false;
-            ctx->room_state = QUIZ_STATE_WAITING;
-            ctx->participant_count = 0;
-            ctx->current_state = PAGE_DASHBOARD;
+        
+        if (stats_timer_id > 0) {
+            g_source_remove(stats_timer_id);
+            stats_timer_id = 0;
         }
-    } else if (input == 's' || input == 'S') {
-        if (ctx->room_state == QUIZ_STATE_WAITING) {
-            client_send_message(ctx, "START_GAME", "");
-            strcpy(ctx->status_message, "Starting quiz...");
-        }
-    } else if (input == 'r' || input == 'R') {
-        client_send_message(ctx, "GET_STATS", "");
-        strcpy(ctx->status_message, "Refreshing stats...");
-        last_stats_request = now;
-    } else if (input == 'd' || input == 'D') {
-        if (ctx->room_state == QUIZ_STATE_WAITING) {
-            edit_mode = 1;
-            sprintf(duration_input, "%d", ctx->quiz_duration);
-        }
-    } else if (input == 'f' || input == 'F') {
-        if (ctx->room_state == QUIZ_STATE_WAITING) {
-            edit_mode = 2;
-            strncpy(filename_input, ctx->question_file, sizeof(filename_input) - 1);
-        }
-    } else if (input == 'q' || input == 'Q') {
-        ctx->current_room_id = -1;
-        ctx->is_host = false;
-        ctx->room_state = QUIZ_STATE_WAITING;
-        ctx->participant_count = 0;
-        ctx->current_state = PAGE_DASHBOARD;
+        
+        ui_navigate_to_page(PAGE_DASHBOARD);
+    }
+}
+
+GtkWidget* page_host_panel_create(ClientContext* ctx) {
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    
+    // Sidebar
+    GtkWidget *sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_size_request(sidebar, 250, -1);
+    gtk_widget_set_margin_start(sidebar, 10);
+    gtk_widget_set_margin_end(sidebar, 10);
+    gtk_widget_set_margin_top(sidebar, 10);
+    gtk_widget_set_margin_bottom(sidebar, 10);
+    
+    GtkWidget *sidebar_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(sidebar_title), "<b>HOST PANEL</b>");
+    gtk_box_pack_start(GTK_BOX(sidebar), sidebar_title, FALSE, FALSE, 5);
+    
+    char room_text[64];
+    snprintf(room_text, sizeof(room_text), "Room ID: %d", ctx->current_room_id);
+    GtkWidget *room_label = gtk_label_new(room_text);
+    gtk_box_pack_start(GTK_BOX(sidebar), room_label, FALSE, FALSE, 0);
+    
+    char host_text[64];
+    snprintf(host_text, sizeof(host_text), "Host: %s", ctx->username);
+    GtkWidget *host_label = gtk_label_new(host_text);
+    gtk_box_pack_start(GTK_BOX(sidebar), host_label, FALSE, FALSE, 0);
+    
+    // Status
+    GtkWidget *status_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(status_title), "<b>Status:</b>");
+    gtk_box_pack_start(GTK_BOX(sidebar), status_title, FALSE, FALSE, 10);
+    
+    const char* state_str = "Waiting";
+    if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
+    else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
+    state_label = gtk_label_new(state_str);
+    gtk_box_pack_start(GTK_BOX(sidebar), state_label, FALSE, FALSE, 0);
+    
+    // Configuration
+    GtkWidget *config_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(config_title), "<b>Configuration:</b>");
+    gtk_box_pack_start(GTK_BOX(sidebar), config_title, FALSE, FALSE, 10);
+    
+    GtkWidget *duration_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    GtkWidget *duration_label = gtk_label_new("Duration (s):");
+    duration_entry = gtk_entry_new();
+    char dur_str[16];
+    snprintf(dur_str, sizeof(dur_str), "%d", ctx->quiz_duration);
+    gtk_entry_set_text(GTK_ENTRY(duration_entry), dur_str);
+    gtk_entry_set_width_chars(GTK_ENTRY(duration_entry), 10);
+    GtkWidget *set_dur_btn = gtk_button_new_with_label("Set");
+    g_signal_connect(set_dur_btn, "clicked", G_CALLBACK(on_set_duration_clicked), ctx);
+    gtk_box_pack_start(GTK_BOX(duration_box), duration_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(duration_box), duration_entry, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(duration_box), set_dur_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(sidebar), duration_box, FALSE, FALSE, 5);
+    
+    GtkWidget *file_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    GtkWidget *file_label = gtk_label_new("Question File:");
+    filename_entry = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(filename_entry), ctx->question_file);
+    GtkWidget *set_file_btn = gtk_button_new_with_label("Set File");
+    g_signal_connect(set_file_btn, "clicked", G_CALLBACK(on_set_file_clicked), ctx);
+    gtk_box_pack_start(GTK_BOX(file_box), file_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(file_box), filename_entry, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(file_box), set_file_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(sidebar), file_box, FALSE, FALSE, 5);
+    
+    // Actions
+    GtkWidget *actions_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(actions_title), "<b>Actions:</b>");
+    gtk_box_pack_start(GTK_BOX(sidebar), actions_title, FALSE, FALSE, 10);
+    
+    if (ctx->room_state == QUIZ_STATE_WAITING) {
+        start_btn = gtk_button_new_with_label("Start Quiz");
+        g_signal_connect(start_btn, "clicked", G_CALLBACK(on_start_quiz_clicked), ctx);
+        gtk_box_pack_start(GTK_BOX(sidebar), start_btn, FALSE, FALSE, 5);
+    } else {
+        GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh Stats");
+        g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_stats_clicked), ctx);
+        gtk_box_pack_start(GTK_BOX(sidebar), refresh_btn, FALSE, FALSE, 5);
+    }
+    
+    GtkWidget *leave_btn = gtk_button_new_with_label("Leave Room");
+    g_signal_connect(leave_btn, "clicked", G_CALLBACK(on_leave_room_clicked), ctx);
+    gtk_box_pack_end(GTK_BOX(sidebar), leave_btn, FALSE, FALSE, 0);
+    
+    GtkWidget *delete_btn = gtk_button_new_with_label("Delete Room");
+    g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_room_clicked), ctx);
+    gtk_box_pack_end(GTK_BOX(sidebar), delete_btn, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(page), sidebar, FALSE, FALSE, 0);
+    
+    // Separator
+    GtkWidget *separator = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    gtk_box_pack_start(GTK_BOX(page), separator, FALSE, FALSE, 0);
+    
+    // Main area
+    GtkWidget *main_area = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_margin_start(main_area, 20);
+    gtk_widget_set_margin_end(main_area, 20);
+    gtk_widget_set_margin_top(main_area, 20);
+    gtk_widget_set_margin_bottom(main_area, 20);
+    
+    status_label = gtk_label_new(ctx->status_message);
+    gtk_box_pack_start(GTK_BOX(main_area), status_label, FALSE, FALSE, 0);
+    
+    GtkWidget *stats_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(stats_title), "<span size='large' weight='bold'>PARTICIPANTS STATISTICS</span>");
+    gtk_box_pack_start(GTK_BOX(main_area), stats_title, FALSE, FALSE, 5);
+    
+    char stats_text[256];
+    snprintf(stats_text, sizeof(stats_text), 
+             "Waiting: %d | Taking: %d | Submitted: %d | Total: %d",
+             ctx->stats_waiting, ctx->stats_taking, ctx->stats_submitted,
+             ctx->stats_waiting + ctx->stats_taking + ctx->stats_submitted);
+    stats_label = gtk_label_new(stats_text);
+    gtk_box_pack_start(GTK_BOX(main_area), stats_label, FALSE, FALSE, 5);
+    
+    GtkWidget *separator2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_box_pack_start(GTK_BOX(main_area), separator2, FALSE, FALSE, 5);
+    
+    // Participant list
+    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    
+    participant_list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_add(GTK_CONTAINER(scrolled), participant_list_box);
+    gtk_box_pack_start(GTK_BOX(main_area), scrolled, TRUE, TRUE, 0);
+    
+    update_participant_list(ctx);
+    
+    gtk_box_pack_start(GTK_BOX(page), main_area, TRUE, TRUE, 0);
+    
+    // Start periodic stats updates if quiz is running
+    if (ctx->room_state == QUIZ_STATE_STARTED) {
+        stats_timer_id = g_timeout_add(2000, request_stats_periodically, ctx);
+    }
+    
+    return page;
+}
+
+void page_host_panel_update(ClientContext* ctx) {
+    update_participant_list(ctx);
+    
+    if (stats_label) {
+        char stats_text[256];
+        snprintf(stats_text, sizeof(stats_text), 
+                 "Waiting: %d | Taking: %d | Submitted: %d | Total: %d",
+                 ctx->stats_waiting, ctx->stats_taking, ctx->stats_submitted,
+                 ctx->stats_waiting + ctx->stats_taking + ctx->stats_submitted);
+        gtk_label_set_text(GTK_LABEL(stats_label), stats_text);
+    }
+    
+    if (status_label && strlen(ctx->status_message) > 0) {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+    }
+    
+    if (state_label) {
+        const char* state_str = "Waiting";
+        if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
+        else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
+        gtk_label_set_text(GTK_LABEL(state_label), state_str);
+    }
+}
+
+void page_host_panel_cleanup() {
+    if (stats_timer_id > 0) {
+        g_source_remove(stats_timer_id);
+        stats_timer_id = 0;
     }
 }

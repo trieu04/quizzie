@@ -1,0 +1,4 @@
+id,question,A,B,C,D,answer
+1,TCP là giao thức?,Kết nối,Không kết nối,Kết nối với mã hóa,Đa hướng,A
+2,UDP là giao thức?,Kết nối,Không kết nối,Đảm bảo thứ tự,Mã hóa,B
+3,HTTP hoạt động ở tầng?,Vận chuyển,Mạng,Vật lý,Ứng dụng,D

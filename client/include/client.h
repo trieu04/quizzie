@@ -14,7 +14,8 @@ typedef enum {
     PAGE_ROOM_LIST,
     PAGE_QUIZ,
     PAGE_RESULT,
-    PAGE_HOST_PANEL  // New: Host control panel
+    PAGE_HOST_PANEL,  // New: Host control panel
+    PAGE_ADMIN_PANEL  // Admin panel for CSV upload and room creation
 } AppState;
 
 typedef enum {
@@ -60,6 +61,7 @@ typedef struct ClientContext {
     
     // User state
     char username[32];
+    int role;                    // 0 = participant, 1 = admin
     
     // Room state
     int current_room_id;
@@ -71,6 +73,7 @@ typedef struct ClientContext {
     // Host panel state
     int quiz_duration;           // Quiz duration in seconds
     char question_file[64];      // Selected question file
+    char subject[32];            // Selected subject (practice/exam)
     ParticipantInfo participants[MAX_PARTICIPANTS];
     int participant_count;
     int stats_waiting;
@@ -86,6 +89,8 @@ typedef struct ClientContext {
     int total_questions;
     time_t quiz_start_time;      // When client started their quiz
     int time_taken;              // Time taken to complete quiz
+    bool is_practice;            // Practice mode flag
+    char practice_answers[256];  // Correct answers for practice mode
     
     // Quiz availability
     bool quiz_available;         // Whether host has started quiz

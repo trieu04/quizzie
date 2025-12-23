@@ -38,6 +38,9 @@ static gboolean update_server_messages(gpointer data) {
                 case PAGE_HOST_PANEL:
                     page_host_panel_update(ctx);
                     break;
+                case PAGE_ADMIN_PANEL:
+                    page_admin_panel_update(ctx);
+                    break;
             }
         }
     }
@@ -79,9 +82,11 @@ void ui_navigate_to_page(AppState state) {
         }
     }
     
-    // Remove old page
+    // Remove old page (guard against invalid widget)
     if (ui_context.current_page) {
-        gtk_widget_destroy(ui_context.current_page);
+        if (GTK_IS_WIDGET(ui_context.current_page)) {
+            gtk_widget_destroy(ui_context.current_page);
+        }
         ui_context.current_page = NULL;
     }
     
@@ -105,6 +110,9 @@ void ui_navigate_to_page(AppState state) {
             break;
         case PAGE_HOST_PANEL:
             new_page = page_host_panel_create(ctx);
+            break;
+        case PAGE_ADMIN_PANEL:
+            new_page = create_admin_panel_page(ctx);
             break;
     }
     

@@ -5,6 +5,12 @@
 #include <sys/epoll.h>
 #include <time.h>
 
+// User role enum
+typedef enum {
+    ROLE_PARTICIPANT = 0,
+    ROLE_ADMIN = 1
+} UserRole;
+
 // Quiz state enum
 typedef enum {
     QUIZ_STATE_WAITING,    // Waiting for host to start
@@ -16,6 +22,7 @@ typedef enum {
 typedef struct {
     int sock;
     char username[50];
+    UserRole role;             // User role (admin or participant)
     time_t quiz_start_time;    // When this client started their quiz
     bool is_taking_quiz;       // Whether client is currently taking quiz
     bool has_submitted;        // Whether client has submitted answers

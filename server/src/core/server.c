@@ -98,21 +98,116 @@ void server_run(ServerContext* ctx) {
                     
                     printf("[TCP] Processing message type: %s from fd=%d\n", msg.type, fd);
                     
-                    if (strcmp(msg.type, "CREATE_ROOM") == 0) {
-                        // Format: CREATE_ROOM:username,duration,filename or CREATE_ROOM:username
-                        char username[50] = "";
-                        char config[256] = "";
+                    if (strcmp(msg.type, "REGISTER") == 0) {
+                        // Format: REGISTER:username,password
+                        char username[64] = "", password[64] = "";
                         char* comma = strchr(msg.data, ',');
                         if (comma) {
                             size_t ulen = comma - msg.data;
-                            if (ulen > 49) ulen = 49;
+                            if (ulen > 63) ulen = 63;
                             strncpy(username, msg.data, ulen);
                             username[ulen] = '\0';
-                            strncpy(config, comma + 1, sizeof(config) - 1);
-                        } else {
-                            strncpy(username, msg.data, sizeof(username) - 1);
+                            strncpy(password, comma + 1, sizeof(password) - 1);
+                            password[sizeof(password) - 1] = '\0';
                         }
-                        room_create(ctx, fd, username, config);
+                        
+                        int result = storage_register_user(username, password);
+                        if (result == 0) {
+                            net_send_to_client(fd, "REGISTER_SUCCESS:Account created", 33);
+                        } else if (result == -2) {
+                            net_send_to_client(fd, "REGISTER_FAILED:Username already exists", 40);
+                        } else {
+                            net_send_to_client(fd, "REGISTER_FAILED:Registration error", 35);
+                        }
+                    } else if (strcmp(msg.type, "LOGIN") == 0) {
+                        // Format: LOGIN:username,password
+                        char username[64] = "", password[64] = "";
+                        char* comma = strchr(msg.data, ',');
+                        if (comma) {
+                            size_t ulen = comma - msg.data;
+                            if (ulen > 63) ulen = 63;
+                            strncpy(username, msg.data, ulen);
+                            username[ulen] = '\0';
+                            strncpy(password, comma + 1, sizeof(password) - 1);
+                            password[sizeof(password) - 1] = '\0';
+                        }
+                        
+                        int role = 0;
+                        if (storage_verify_login(username, password, &role) == 0) {
+                            // Update client username and role
+                            for (int j = 0; j < ctx->client_count; j++) {
+                                if (ctx->clients[j].sock == fd) {
+                                    strncpy(ctx->clients[j].username, username, sizeof(ctx->clients[j].username) - 1);
+                                    ctx->clients[j].role = role;
+                                    break;
+                                }
+                            }
+                            char response[64];
+                            snprintf(response, sizeof(response), "LOGIN_SUCCESS:%d", role);
+                            net_send_to_client(fd, response, strlen(response));
+                        } else {
+                            net_send_to_client(fd, "LOGIN_FAILED:Invalid credentials", 33);
+                        }
+                    } else if (strcmp(msg.type, "UPLOAD_QUESTIONS") == 0) {
+                        // Format: UPLOAD_QUESTIONS:filename,csv_data
+                        // Check if user is admin
+                        int is_admin = 0;
+                        for (int j = 0; j < ctx->client_count; j++) {
+                            if (ctx->clients[j].sock == fd && ctx->clients[j].role == 1) {
+                                is_admin = 1;
+                                break;
+                            }
+                        }
+                        
+                        if (!is_admin) {
+                            net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
+                        } else {
+                            char filename[128] = "";
+                            char* comma = strchr(msg.data, ',');
+                            if (comma) {
+                                size_t flen = comma - msg.data;
+                                if (flen > 127) flen = 127;
+                                strncpy(filename, msg.data, flen);
+                                filename[flen] = '\0';
+                                const char* csv_data = comma + 1;
+                                
+                                if (storage_save_csv_bank(filename, csv_data) == 0) {
+                                    net_send_to_client(fd, "UPLOAD_SUCCESS:CSV saved", 24);
+                                } else {
+                                    net_send_to_client(fd, "UPLOAD_FAILED:Failed to save", 29);
+                                }
+                            } else {
+                                net_send_to_client(fd, "UPLOAD_FAILED:Invalid format", 29);
+                            }
+                        }
+                    } else if (strcmp(msg.type, "CREATE_ROOM") == 0) {
+                        // Check if user is admin
+                        int is_admin = 0;
+                        for (int j = 0; j < ctx->client_count; j++) {
+                            if (ctx->clients[j].sock == fd && ctx->clients[j].role == 1) {
+                                is_admin = 1;
+                                break;
+                            }
+                        }
+                        
+                        if (!is_admin) {
+                            net_send_to_client(fd, "ERROR:Only admins can create rooms", 35);
+                        } else {
+                            // Format: CREATE_ROOM:username,duration,filename or CREATE_ROOM:username
+                            char username[50] = "";
+                            char config[256] = "";
+                            char* comma = strchr(msg.data, ',');
+                            if (comma) {
+                                size_t ulen = comma - msg.data;
+                                if (ulen > 49) ulen = 49;
+                                strncpy(username, msg.data, ulen);
+                                username[ulen] = '\0';
+                                strncpy(config, comma + 1, sizeof(config) - 1);
+                            } else {
+                                strncpy(username, msg.data, sizeof(username) - 1);
+                            }
+                            room_create(ctx, fd, username, config);
+                        }
                     } else if (strcmp(msg.type, "JOIN_ROOM") == 0) {
                         // Format: JOIN_ROOM:room_id,username
                         int room_id = 0;

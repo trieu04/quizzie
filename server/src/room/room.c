@@ -3,6 +3,7 @@
 #include "../../include/net.h"
 #include <dirent.h>
 #include <time.h>
+#include <stdio.h>
 
 // Helper function to find a client by socket in a room
 static Client* find_client_in_room(Room* room, int sock) {
@@ -46,40 +47,7 @@ static Room* find_room_by_client(ServerContext* ctx, int sock) {
     return NULL;
 }
 
-// List available question files
-static void room_list_question_files(ServerContext* ctx, int client_sock) {
-    const char* data_dirs[] = {
-        "data/",
-        "../data/",
-        "../../data/",
-        NULL
-    };
-    
-    char response[BUFFER_SIZE] = "QUESTION_FILES:";
-    int found = 0;
-    
-    for (int d = 0; data_dirs[d] != NULL; d++) {
-        DIR* dir = opendir(data_dirs[d]);
-        if (dir) {
-            struct dirent* entry;
-            while ((entry = readdir(dir)) != NULL) {
-                if (strstr(entry->d_name, ".txt") != NULL) {
-                    if (found > 0) strcat(response, ",");
-                    strcat(response, entry->d_name);
-                    found++;
-                }
-            }
-            closedir(dir);
-            break;
-        }
-    }
-    
-    if (found == 0) {
-        strcpy(response, "QUESTION_FILES:questions.txt");
-    }
-    
-    net_send_to_client(client_sock, response, strlen(response));
-}
+// Removed unused helper room_list_question_files to avoid unused warnings
 
 // List all rooms
 void room_list(ServerContext* ctx, int client_sock) {
@@ -120,21 +88,42 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     room->client_count = 0;  // Host is not counted as participant
     room->state = QUIZ_STATE_WAITING;
     room->quiz_duration = 300;  // Default 5 minutes
-    strcpy(room->question_file, "questions.txt");
+    strcpy(room->question_file, "exam_bank.csv");
     
-    // Parse config if provided: "duration,filename"
+    // Parse config if provided: accepts formats
+    //  - "duration,filename"
+    //  - "subject,duration"
+    //  - "subject,duration,filename"
     if (config && strlen(config) > 0) {
         char config_copy[256];
         strncpy(config_copy, config, sizeof(config_copy) - 1);
         config_copy[sizeof(config_copy) - 1] = '\0';
-        char* duration_str = strtok(config_copy, ",");
-        char* file_str = strtok(NULL, ",");
+        char* tok1 = strtok(config_copy, ",");
+        char* tok2 = strtok(NULL, ",");
+        char* tok3 = strtok(NULL, ",");
         
-        if (duration_str) {
-            room->quiz_duration = atoi(duration_str);
-        }
-        if (file_str) {
-            strncpy(room->question_file, file_str, sizeof(room->question_file) - 1);
+        if (tok1) {
+            // If tok1 is numeric => duration; else it's subject
+            bool is_num = true;
+            for (int i = 0; tok1[i]; i++) { if (tok1[i] < '0' || tok1[i] > '9') { is_num = false; break; } }
+            if (is_num) {
+                room->quiz_duration = atoi(tok1);
+                if (tok2) {
+                    strncpy(room->question_file, tok2, sizeof(room->question_file) - 1);
+                }
+            } else {
+                // subject provided
+                char subject[64];
+                strncpy(subject, tok1, sizeof(subject) - 1);
+                subject[sizeof(subject) - 1] = '\0';
+                snprintf(room->question_file, sizeof(room->question_file), "exam_bank_%s.csv", subject);
+                if (tok2) {
+                    room->quiz_duration = atoi(tok2);
+                }
+                if (tok3) {
+                    strncpy(room->question_file, tok3, sizeof(room->question_file) - 1);
+                }
+            }
         }
     }
 
@@ -168,11 +157,21 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
         return -1;
     }
 
-    char response[100];
-    sprintf(response, "ROOM_CREATED:%d,%d", room->id, room->quiz_duration);
+    char response[64];
+    snprintf(response, sizeof(response), "ROOM_CREATED:%d,%d", room->id, room->quiz_duration);
     net_send_to_client(host_sock, response, strlen(response));
     ctx->room_count++;
     LOG_INFO("Room created successfully");
+    
+    // Log to file
+    char log_entry[256];
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+    snprintf(log_entry, sizeof(log_entry), "[%s] ROOM_CREATED id=%d host=%s duration=%d", 
+             timestamp, room->id, username, room->quiz_duration);
+    storage_save_log(log_entry);
     return 0;
 }
 
@@ -190,8 +189,8 @@ int room_rejoin_as_host(ServerContext* ctx, int client_sock, const char* usernam
         strncpy(client->username, username, sizeof(client->username) - 1);
     }
     
-    char response[100];
-    sprintf(response, "ROOM_REJOINED:%d,%d,%d", room->id, room->quiz_duration, room->state);
+    char response[64];
+    snprintf(response, sizeof(response), "ROOM_REJOINED:%d,%d,%d", room->id, room->quiz_duration, room->state);
     net_send_to_client(client_sock, response, strlen(response));
     LOG_INFO("Host rejoined room");
     return 0;
@@ -207,38 +206,53 @@ int room_set_config(ServerContext* ctx, int host_sock, const char* config) {
                 return -1;
             }
             
-            // Parse config: "duration,filename"
+            // Parse config: accepts "duration,filename" or "subject,duration[,filename]"
             char config_copy[256];
             strncpy(config_copy, config, sizeof(config_copy) - 1);
             config_copy[sizeof(config_copy) - 1] = '\0';
-            char* duration_str = strtok(config_copy, ",");
-            char* file_str = strtok(NULL, ",");
+            char* tok1 = strtok(config_copy, ",");
+            char* tok2 = strtok(NULL, ",");
+            char* tok3 = strtok(NULL, ",");
             
-            if (duration_str) {
-                room->quiz_duration = atoi(duration_str);
-            }
-            if (file_str && strlen(file_str) > 0) {
-                strncpy(room->question_file, file_str, sizeof(room->question_file) - 1);
-                
-                // Reload questions
-                char filepath[256];
-                const char* prefixes[] = { "data/", "../data/", "../../data/", NULL };
-                int loaded = 0;
-                for (int j = 0; prefixes[j] != NULL; ++j) {
-                    snprintf(filepath, sizeof(filepath), "%s%s", prefixes[j], room->question_file);
-                    if (storage_load_questions(filepath, room->questions, room->correct_answers) == 0) {
-                        loaded = 1;
-                        break;
+            if (tok1) {
+                bool is_num = true;
+                for (int i = 0; tok1[i]; i++) { if (tok1[i] < '0' || tok1[i] > '9') { is_num = false; break; } }
+                if (is_num) {
+                    room->quiz_duration = atoi(tok1);
+                    if (tok2 && strlen(tok2) > 0) {
+                        strncpy(room->question_file, tok2, sizeof(room->question_file) - 1);
+                    }
+                } else {
+                    // subject provided
+                    char subject[64];
+                    strncpy(subject, tok1, sizeof(subject) - 1);
+                    subject[sizeof(subject) - 1] = '\0';
+                    snprintf(room->question_file, sizeof(room->question_file), "exam_bank_%s.csv", subject);
+                    if (tok2) room->quiz_duration = atoi(tok2);
+                    if (tok3 && strlen(tok3) > 0) {
+                        strncpy(room->question_file, tok3, sizeof(room->question_file) - 1);
                     }
                 }
-                if (!loaded) {
-                    net_send_to_client(host_sock, "ERROR:Failed to load question file", 34);
-                    return -1;
-                }
             }
             
-            char response[100];
-            sprintf(response, "CONFIG_UPDATED:%d,%s", room->quiz_duration, room->question_file);
+            // Reload questions
+            char filepath[256];
+            const char* prefixes[] = { "data/", "../data/", "../../data/", NULL };
+            int loaded = 0;
+            for (int j = 0; prefixes[j] != NULL; ++j) {
+                snprintf(filepath, sizeof(filepath), "%s%s", prefixes[j], room->question_file);
+                if (storage_load_questions(filepath, room->questions, room->correct_answers) == 0) {
+                    loaded = 1;
+                    break;
+                }
+            }
+            if (!loaded) {
+                net_send_to_client(host_sock, "ERROR:Failed to load question file", 34);
+                return -1;
+            }
+            
+            char response[256];
+            snprintf(response, sizeof(response), "CONFIG_UPDATED:%d,%s", room->quiz_duration, room->question_file);
             net_send_to_client(host_sock, response, strlen(response));
             return 0;
         }
@@ -263,8 +277,8 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
                 for (int j = 0; j < room->client_count; j++) {
                     if (room->clients[j] == client) {
                         // Already in room, just send confirmation
-                        char response[100];
-                        sprintf(response, "JOINED:%d,%d,%d", room_id, room->quiz_duration, room->state);
+                        char response[64];
+                        snprintf(response, sizeof(response), "JOINED:%d,%d,%d", room_id, room->quiz_duration, room->state);
                         net_send_to_client(client_sock, response, strlen(response));
                         return 0;
                     }
@@ -280,16 +294,26 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
                 room->clients[room->client_count] = client;
                 room->client_count++;
 
-                char response[100];
-                sprintf(response, "JOINED:%d,%d,%d", room_id, room->quiz_duration, room->state);
+                char response[64];
+                snprintf(response, sizeof(response), "JOINED:%d,%d,%d", room_id, room->quiz_duration, room->state);
                 net_send_to_client(client_sock, response, strlen(response));
                 
                 // Notify host about new participant
-                char notify[100];
-                sprintf(notify, "PARTICIPANT_JOINED:%s", username);
+                char notify[128];
+                snprintf(notify, sizeof(notify), "PARTICIPANT_JOINED:%s", username);
                 net_send_to_client(room->host_sock, notify, strlen(notify));
                 
                 LOG_INFO("Client joined room");
+                
+                // Log to file
+                char log_entry[256];
+                time_t now = time(NULL);
+                struct tm* tm_info = localtime(&now);
+                char ts[64];
+                strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+                snprintf(log_entry, sizeof(log_entry), "[%s] ROOM_JOIN room_id=%d user=%s", 
+                         ts, room_id, username);
+                storage_save_log(log_entry);
                 return 0;
             }
         }
@@ -309,15 +333,15 @@ int room_start_quiz(ServerContext* ctx, int host_sock) {
             // Notify all participants (not the host) that quiz is available
             for (int j = 0; j < room->client_count; j++) {
                 if (room->clients[j]) {
-                    char start_msg[100];
-                    sprintf(start_msg, "QUIZ_AVAILABLE:%d", room->quiz_duration);
+                    char start_msg[64];
+                    snprintf(start_msg, sizeof(start_msg), "QUIZ_AVAILABLE:%d", room->quiz_duration);
                     net_send_to_client(room->clients[j]->sock, start_msg, strlen(start_msg));
                 }
             }
             
             // Confirm to host
-            char response[50];
-            sprintf(response, "QUIZ_STARTED:%d", room->client_count);
+            char response[32];
+            snprintf(response, sizeof(response), "QUIZ_STARTED:%d", room->client_count);
             net_send_to_client(host_sock, response, strlen(response));
             
             return 0;
@@ -352,12 +376,12 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
     
     // Send questions to this client
     char response[BUFFER_SIZE];
-    sprintf(response, "QUESTIONS:%d;%s", room->quiz_duration, room->questions);
+    snprintf(response, sizeof(response), "QUESTIONS:%d;%s", room->quiz_duration, room->questions);
     net_send_to_client(client_sock, response, strlen(response));
     
     // Notify host
-    char notify[100];
-    sprintf(notify, "PARTICIPANT_STARTED:%s", client->username);
+    char notify[128];
+    snprintf(notify, sizeof(notify), "PARTICIPANT_STARTED:%s", client->username);
     net_send_to_client(room->host_sock, notify, strlen(notify));
     
     LOG_INFO("Client started quiz");
@@ -365,9 +389,19 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
 }
 
 int room_get_stats(ServerContext* ctx, int host_sock) {
+    // Find room where this client is the host
+    Room* room = NULL;
     for (int i = 0; i < ctx->room_count; i++) {
         if (ctx->rooms[i].host_sock == host_sock) {
-            Room* room = &ctx->rooms[i];
+            room = &ctx->rooms[i];
+            break;
+        }
+    }
+    
+    if (!room) {
+        net_send_to_client(host_sock, "ERROR:Not a room host", 21);
+        return -1;
+    }
             
             // Build stats response
             char response[BUFFER_SIZE];
@@ -387,7 +421,7 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                         submitted++;
                         // Add submitted participant info
                         char info[128];
-                        sprintf(info, "%s%s:S:%d/%d", 
+                        snprintf(info, sizeof(info), "%s%s:S:%d/%d", 
                             strlen(participants) > 0 ? "," : "",
                             c->username, c->score, c->total);
                         strcat(participants, info);
@@ -399,7 +433,7 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                         if (remaining < 0 && room->quiz_duration > 0) remaining = 0;
                         
                         char info[128];
-                        sprintf(info, "%s%s:T:%d", 
+                        snprintf(info, sizeof(info), "%s%s:T:%d", 
                             strlen(participants) > 0 ? "," : "",
                             c->username, remaining);
                         strcat(participants, info);
@@ -407,7 +441,7 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                         waiting++;
                         // Add waiting participant info
                         char info[128];
-                        sprintf(info, "%s%s:W:0", 
+                        snprintf(info, sizeof(info), "%s%s:W:0", 
                             strlen(participants) > 0 ? "," : "",
                             c->username);
                         strcat(participants, info);
@@ -415,12 +449,10 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                 }
             }
             
-            sprintf(response, "ROOM_STATS:%d,%d,%d;%s", waiting, taking, submitted, participants);
+            snprintf(response, sizeof(response), "ROOM_STATS:%d,%d,%d;%s", waiting, taking, submitted, participants);
             net_send_to_client(host_sock, response, strlen(response));
             return 0;
-        }
-    }
-    net_send_to_client(host_sock, "ERROR:Not a room host", 21);
+    
     return -1;
 }
 
@@ -475,16 +507,26 @@ int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers
     time_t now = time(NULL);
     int time_taken = client->quiz_start_time > 0 ? (int)(now - client->quiz_start_time) : 0;
 
-    char result[100];
-    sprintf(result, "RESULT:%d/%d,%d", score, total, time_taken);
+    char result[64];
+    snprintf(result, sizeof(result), "RESULT:%d/%d,%d", score, total, time_taken);
     net_send_to_client(client_sock, result, strlen(result));
     
     // Notify host
-    char notify[100];
-    sprintf(notify, "PARTICIPANT_SUBMITTED:%s,%d,%d", client->username, score, total);
+    char notify[128];
+    snprintf(notify, sizeof(notify), "PARTICIPANT_SUBMITTED:%s,%d,%d", client->username, score, total);
     net_send_to_client(room->host_sock, notify, strlen(notify));
     
     LOG_INFO("Answers submitted and scored");
+    
+    // Log to file
+    char log_entry[256];
+    time_t now_t = time(NULL);
+    struct tm* tm_info = localtime(&now_t);
+    char ts[64];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+    snprintf(log_entry, sizeof(log_entry), "[%s] SUBMIT user=%s room_id=%d score=%d/%d time=%ds", 
+             ts, client->username, room->id, score, total, time_taken);
+    storage_save_log(log_entry);
     return 0;
 }
 

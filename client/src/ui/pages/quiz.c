@@ -110,13 +110,48 @@ static void on_submit_clicked(GtkWidget *widget, gpointer data) {
     (void)widget;
     ClientContext* ctx = (ClientContext*)data;
     
-    if (ctx->connected && ctx->question_count > 0) {
-        char answer_str[MAX_QUESTIONS + 1];
-        for (int i = 0; i < ctx->question_count; i++) {
-            answer_str[i] = ctx->answers[i] ? ctx->answers[i] : '-';
-        }
-        answer_str[ctx->question_count] = '\0';
+    if (ctx->question_count == 0) return;
+    
+    char answer_str[MAX_QUESTIONS + 1];
+    for (int i = 0; i < ctx->question_count; i++) {
+        answer_str[i] = ctx->answers[i] ? ctx->answers[i] : '-';
+    }
+    answer_str[ctx->question_count] = '\0';
+    
+    if (ctx->is_practice) {
+        // Score locally for practice mode
+        int score = 0;
+        int total = ctx->question_count;
         
+        // Parse practice answers
+        char practice_copy[256];
+        strncpy(practice_copy, ctx->practice_answers, sizeof(practice_copy) - 1);
+        practice_copy[sizeof(practice_copy) - 1] = '\0';
+        
+        char* saveptr;
+        char* token = strtok_r(practice_copy, ",", &saveptr);
+        int idx = 0;
+        while (token && idx < ctx->question_count) {
+            if (ctx->answers[idx] == token[0]) {
+                score++;
+            }
+            idx++;
+            token = strtok_r(NULL, ",", &saveptr);
+        }
+        
+        // Calculate time taken
+        time_t now = time(NULL);
+        ctx->time_taken = ctx->quiz_start_time > 0 ? (int)(now - ctx->quiz_start_time) : 0;
+        
+        ctx->score = score;
+        ctx->total_questions = total;
+        ctx->current_state = PAGE_RESULT;
+        strcpy(ctx->status_message, "Practice completed!");
+        
+        // Navigate to result
+        ui_navigate_to_page(PAGE_RESULT);
+    } else if (ctx->connected) {
+        // Send to server for online mode
         client_send_message(ctx, "SUBMIT", answer_str);
         strcpy(ctx->status_message, "Answers submitted!");
         if (status_label) {

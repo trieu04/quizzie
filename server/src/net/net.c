@@ -1,9 +1,11 @@
 #include "../../include/net.h"
 #include "../../include/server.h"
+#include "../../include/storage.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>
 
 int net_setup(ServerContext* ctx) {
     ctx->server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -47,6 +49,15 @@ int net_accept_client(ServerContext* ctx) {
         ctx->client_count++;
         printf("[TCP] Client connected: fd=%d\n", client_sock);
         LOG_INFO("New client connected");
+        
+        // Log to file
+        char log_entry[256];
+        time_t now = time(NULL);
+        struct tm* tm_info = localtime(&now);
+        char timestamp[64];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+        snprintf(log_entry, sizeof(log_entry), "[%s] CLIENT_CONNECT fd=%d", timestamp, client_sock);
+        storage_save_log(log_entry);
     }
     return client_sock;
 }

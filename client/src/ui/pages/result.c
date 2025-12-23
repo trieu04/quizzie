@@ -14,6 +14,7 @@ static void on_play_again_clicked(GtkWidget *widget, gpointer data) {
     ctx->quiz_start_time = 0;
     ctx->time_taken = 0;
     ctx->quiz_available = false;
+    ctx->is_practice = false;
     memset(ctx->answers, 0, sizeof(ctx->answers));
     ctx->status_message[0] = '\0';
     ctx->current_room_id = -1;
@@ -33,6 +34,7 @@ static void on_dashboard_clicked(GtkWidget *widget, gpointer data) {
     ctx->quiz_start_time = 0;
     ctx->time_taken = 0;
     ctx->quiz_available = false;
+    ctx->is_practice = false;
     memset(ctx->answers, 0, sizeof(ctx->answers));
     ctx->status_message[0] = '\0';
     ctx->current_room_id = -1;

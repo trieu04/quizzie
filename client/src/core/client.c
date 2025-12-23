@@ -215,6 +215,20 @@ static void parse_room_stats(ClientContext* ctx, const char* data) {
     }
 }
 
+// Helper to safely set status messages with bounded server-provided detail
+static void set_status_with_data(ClientContext* ctx, const char* prefix, const char* data) {
+    if (!ctx) return;
+    const char* d = data ? data : "";
+    size_t prefix_len = strlen(prefix);
+    size_t max_detail = sizeof(ctx->status_message) - 1;
+    if (prefix_len < max_detail) {
+        max_detail -= prefix_len;
+    } else {
+        max_detail = 0;
+    }
+    snprintf(ctx->status_message, sizeof(ctx->status_message), "%s%.*s", prefix, (int)max_detail, d);
+}
+
 // Process a message received from the server
 void client_process_server_message(ClientContext* ctx, const char* message) {
     char type[32] = { 0 };
@@ -330,17 +344,22 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
             "Config updated: %ds, %s", ctx->quiz_duration, ctx->question_file);
     }
     else if (strcmp(type, "PARTICIPANT_JOINED") == 0) {
-        snprintf(ctx->status_message, sizeof(ctx->status_message),
-            "New participant: %s", data);
+        set_status_with_data(ctx, "New participant: ", data);
     }
     else if (strcmp(type, "PARTICIPANT_STARTED") == 0) {
-        snprintf(ctx->status_message, sizeof(ctx->status_message),
-            "%s started the quiz", data);
+        const char* d = data ? data : "";
+        size_t suffix_len = strlen(" started the quiz");
+        size_t max_name = sizeof(ctx->status_message) - 1;
+        if (suffix_len < max_name) {
+            max_name -= suffix_len;
+        } else {
+            max_name = 0;
+        }
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "%.*s started the quiz", (int)max_name, d);
     }
     else if (strcmp(type, "PARTICIPANT_SUBMITTED") == 0) {
-        // Format: username,score,total
-        snprintf(ctx->status_message, sizeof(ctx->status_message),
-            "Submitted: %s", data);
+        // Format: username,score,total (we still bound display to fit)
+        set_status_with_data(ctx, "Submitted: ", data);
     }
     else if (strcmp(type, "RESULT") == 0) {
         // Format: SCORE/TOTAL,time_taken
@@ -353,6 +372,32 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         sscanf(data, "%d/%d", &ctx->score, &ctx->total_questions);
         ctx->time_taken = time_taken;
         ctx->current_state = PAGE_RESULT;
+    }
+    else if (strcmp(type, "LOGIN_SUCCESS") == 0) {
+        // Parse role from data (0=participant, 1=admin)
+        ctx->role = atoi(data);
+        if (ctx->role == 1) {
+            ctx->current_state = PAGE_ADMIN_PANEL;
+            snprintf(ctx->status_message, sizeof(ctx->status_message), "Admin logged in!");
+        } else {
+            ctx->current_state = PAGE_DASHBOARD;
+            snprintf(ctx->status_message, sizeof(ctx->status_message), "Logged in successfully!");
+        }
+    }
+    else if (strcmp(type, "LOGIN_FAILED") == 0) {
+        set_status_with_data(ctx, "Login failed: ", data);
+    }
+    else if (strcmp(type, "REGISTER_SUCCESS") == 0) {
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "Registration successful! You can now login.");
+    }
+    else if (strcmp(type, "REGISTER_FAILED") == 0) {
+        set_status_with_data(ctx, "Registration failed: ", data);
+    }
+    else if (strcmp(type, "UPLOAD_SUCCESS") == 0) {
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "CSV uploaded successfully!");
+    }
+    else if (strcmp(type, "UPLOAD_FAILED") == 0) {
+        set_status_with_data(ctx, "Upload failed: ", data);
     }
     else if (strcmp(type, "ERROR") == 0) {
         snprintf(ctx->status_message, sizeof(ctx->status_message), "Error: %.100s", data);

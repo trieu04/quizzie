@@ -1,0 +1,4 @@
+id,question,A,B,C,D,answer
+1,Python là ngôn ngữ?,Biên dịch,Thông dịch,Lắp ráp,Markup,B
+2,C++ hỗ trợ ?,Hướng đối tượng,Functional,Logic,Markup,A
+3,Java chạy trên?,JVM,CLR,Native,Web,A

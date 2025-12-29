@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g -Iinclude -D_XOPEN_SOURCE=500
-LDFLAGS = -lncurses -pthread
+CFLAGS = -Wall -Wextra -g -Iinclude -D_XOPEN_SOURCE=500 `pkg-config --cflags gtk+-3.0`
+LDFLAGS = `pkg-config --libs gtk+-3.0` -pthread
 
 SRC_DIR = src
 OBJ_DIR = obj

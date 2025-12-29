@@ -1,8 +1,11 @@
 #include "../../include/net.h"
 #include "../../include/server.h"
+#include "../../include/storage.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <time.h>
 
 int net_setup(ServerContext* ctx) {
     ctx->server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -44,20 +47,45 @@ int net_accept_client(ServerContext* ctx) {
         ctx->clients[ctx->client_count].sock = client_sock;
         strcpy(ctx->clients[ctx->client_count].username, "User");
         ctx->client_count++;
+        printf("[TCP] Client connected: fd=%d\n", client_sock);
         LOG_INFO("New client connected");
+        
+        // Log to file
+        char log_entry[256];
+        time_t now = time(NULL);
+        struct tm* tm_info = localtime(&now);
+        char timestamp[64];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+        snprintf(log_entry, sizeof(log_entry), "[%s] CLIENT_CONNECT fd=%d", timestamp, client_sock);
+        storage_save_log(log_entry);
     }
     return client_sock;
 }
 
 int net_send_to_client(int sock, const char* data, size_t len) {
-    return send(sock, data, len, 0);
+    int result = send(sock, data, len, 0);
+    if (result > 0) {
+        printf("[TCP] SEND fd=%d: %.*s\n", sock, (int)result, data);
+    } else if (result < 0) {
+        printf("[TCP] SEND ERROR fd=%d: %s\n", sock, strerror(errno));
+    }
+    return result;
 }
 
 int net_receive_from_client(int sock, char* buffer, size_t len) {
-    return recv(sock, buffer, len, 0);
+    int result = recv(sock, buffer, len, 0);
+    if (result > 0) {
+        printf("[TCP] RECV fd=%d: %.*s\n", sock, result, buffer);
+    } else if (result == 0) {
+        printf("[TCP] Client disconnected: fd=%d\n", sock);
+    } else if (result < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        printf("[TCP] RECV ERROR fd=%d: %s\n", sock, strerror(errno));
+    }
+    return result;
 }
 
 void net_close_client(ServerContext* ctx, int sock) {
+    printf("[TCP] Closing client connection: fd=%d\n", sock);
     epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
     // Remove from clients array if needed

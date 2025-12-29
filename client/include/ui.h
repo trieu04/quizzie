@@ -2,28 +2,45 @@
 #define UI_H
 
 #include "client.h"
+#include <gtk/gtk.h>
+
+// UI context structure
+typedef struct {
+    GtkWidget *window;
+    GtkWidget *main_container;
+    GtkWidget *current_page;
+    ClientContext *client_ctx;
+} UIContext;
 
 // Function prototypes
-void ui_init();
+void ui_init(int *argc, char ***argv);
 void ui_cleanup();
 void ui_run(ClientContext* ctx);
-void ui_show_message(const char* msg);
-int ui_get_input();
+UIContext* ui_get_context();
 
-// Page interfaces
-void page_login_draw(ClientContext* ctx);
-void page_login_handle_input(ClientContext* ctx, int input);
+// Page creation functions
+GtkWidget* page_login_create(ClientContext* ctx);
+GtkWidget* page_dashboard_create(ClientContext* ctx);
+GtkWidget* page_room_list_create(ClientContext* ctx);
+GtkWidget* page_quiz_create(ClientContext* ctx);
+GtkWidget* page_result_create(ClientContext* ctx);
+GtkWidget* page_host_panel_create(ClientContext* ctx);
+GtkWidget* create_admin_panel_page(ClientContext* ctx);
 
-void page_dashboard_draw(ClientContext* ctx);
-void page_dashboard_handle_input(ClientContext* ctx, int input);
+// Page update functions
+void page_login_update(ClientContext* ctx);
+void page_dashboard_update(ClientContext* ctx);
+void page_room_list_update(ClientContext* ctx);
+void page_quiz_update(ClientContext* ctx);
+void page_result_update(ClientContext* ctx);
+void page_host_panel_update(ClientContext* ctx);
+void page_admin_panel_update(ClientContext* ctx);
 
-void page_room_list_draw(ClientContext* ctx);
-void page_room_list_handle_input(ClientContext* ctx, int input);
+// Page cleanup functions
+void page_quiz_cleanup();
+void page_host_panel_cleanup();
 
-void page_quiz_draw(ClientContext* ctx);
-void page_quiz_handle_input(ClientContext* ctx, int input);
-
-void page_result_draw(ClientContext* ctx);
-void page_result_handle_input(ClientContext* ctx, int input);
+// Navigation
+void ui_navigate_to_page(AppState state);
 
 #endif // UI_H

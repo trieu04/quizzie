@@ -1,0 +1,31 @@
+id,question,A,B,C,D,answer,difficulty
+1,Python là ngôn ngữ?,Biên dịch,Thông dịch,Lắp ráp,Markup,B,easy
+2,Java chạy trên?,JVM,CLR,Native,Web,A,easy
+3,Lệnh git để sao chép repo?,git copy,git clone,git pull,git init,B,easy
+4,HTML viết tắt của?,HyperText Markup Language,Hyperlink Text Markup,Hyper Transfer Markup,Hyper Terminal Markup,A,easy
+5,Phương thức thêm vào vector trong C++?,add,push_back,append,insert,B,easy
+6,Framework front-end của Meta?,Angular,Vue,React,Solid,C,easy
+7,Lambda trong Python được khai báo bằng?,lambda,fn,func,def,A,easy
+8,Package manager mặc định của Node.js?,npm,yarn,pip,cargo,A,easy
+9,CSS viết tắt của?,Cascading Style Sheet,Creative Style Sheet,Computer Style Sheet,Coded Style Sheet,A,easy
+10,Ngôn ngữ truy vấn cơ sở dữ liệu phổ biến?,HTML,SQL,XML,JSON,B,easy
+11,C++ hỗ trợ?,Hướng đối tượng,Functional,Logic,Markup,A,medium
+12,Độ phức tạp tìm kiếm nhị phân?,O(n),O(log n),O(n log n),O(1),B,medium
+13,Cấu trúc bất biến trong Python?,list,tuple,dict,set,B,medium
+14,JS engine trong Chrome?,SpiderMonkey,V8,Chakra,Nashorn,B,medium
+15,Câu lệnh SQL lọc hàng?,SELECT,FROM,WHERE,GROUP BY,C,medium
+16,Phép gán hằng trong C++?,const,let,var,static,A,medium
+17,Kiểu boolean trong SQL?,BIT,BOOL,BOOLEAN,TINYINT(1),D,medium
+18,Khai báo hằng trong Java?,const,final,static,let,B,medium
+19,Từ khóa bất đồng bộ trong C#?,await,async,task,future,B,medium
+20,Container chuẩn lưu cặp key-value trong C++?,vector,set,map,queue,C,medium
+21,Độ phức tạp worst-case của QuickSort?,O(n),O(n log n),O(n^2),O(log n),C,hard
+22,Design pattern Singleton đảm bảo?,Nhiều instance,Một instance duy nhất,Không instance,Instance theo nhu cầu,B,hard
+23,ACID trong database có nghĩa là?,Atomicity Consistency Isolation Durability,Access Control Identity Data,Automated Computational Intelligence Data,Association Class Interface Database,A,hard
+24,Big-O của thuật toán Dijkstra (binary heap)?,O(V),O(E log V),O(V^2),O(E + V),B,hard
+25,CAP theorem trong distributed system?,Consistency Availability Performance,Consistency Availability Partition tolerance,Concurrency Authentication Performance,Cache API Protocol,B,hard
+26,SOLID principle: O là viết tắt?,Open,Object,Operation,Optimization,A,hard
+27,Time complexity của merge sort?,O(n),O(n log n),O(n^2),O(log n),B,hard
+28,Virtual function trong C++ dùng để?,Polymorphism,Encapsulation,Inheritance,Abstraction,A,hard
+29,Garbage collection algorithm Mark-and-Sweep?,Marks used-Sweeps unused,Marks unused-Sweeps used,Sweeps all-Marks new,None of these,A,hard
+30,NP-Complete problem là vấn đề?,Giải trong polynomial time,Verify trong polynomial time,Cả hai,Không polynomial,B,hard

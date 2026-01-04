@@ -75,18 +75,29 @@ static gboolean on_entry_key_press(GtkWidget *widget, GdkEventKey *event, gpoint
 }
 
 GtkWidget* page_login_create(ClientContext* ctx) {
+	// Reset statics to avoid stale widget pointers between navigations
+	username_entry = NULL;
+	password_entry = NULL;
+	status_label = NULL;
+	login_button = NULL;
+	register_button = NULL;
+
 	GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	GtkStyleContext *main_ctx = gtk_widget_get_style_context(main_box);
+	gtk_style_context_add_class(main_ctx, "page");
 
 	GtkWidget *header = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
 	gtk_widget_set_margin_top(header, 40);
 	gtk_widget_set_margin_bottom(header, 30);
 
 	GtkWidget *title = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(title), "<span size='30000' weight='bold' foreground='#2c3e50'>QUIZZIE</span>");
+	gtk_label_set_markup(GTK_LABEL(title), "<span size='30000' weight='bold' foreground='#1c2430'>QUIZZIE</span>");
+	gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
 	gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 0);
 
 	GtkWidget *subtitle = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(subtitle), "<span size='large' foreground='#7f8c8d'>Online Quiz Application</span>");
+	gtk_label_set_markup(GTK_LABEL(subtitle), "<span size='large' foreground='#5b6472'>Online Quiz Application</span>");
+	gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "header-subtitle");
 	gtk_box_pack_start(GTK_BOX(header), subtitle, FALSE, FALSE, 0);
 
 	gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
@@ -96,10 +107,11 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	gtk_widget_set_valign(content, GTK_ALIGN_CENTER);
 
 	GtkWidget *form_frame = gtk_frame_new(NULL);
-	gtk_frame_set_shadow_type(GTK_FRAME(form_frame), GTK_SHADOW_ETCHED_IN);
+	gtk_frame_set_shadow_type(GTK_FRAME(form_frame), GTK_SHADOW_NONE);
 	GtkWidget *form_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(form_label), "<b>Login / Register</b>");
 	gtk_frame_set_label_widget(GTK_FRAME(form_frame), form_label);
+	gtk_style_context_add_class(gtk_widget_get_style_context(form_frame), "card");
 
 	GtkWidget *form_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
 	gtk_widget_set_size_request(form_box, 350, -1);
@@ -114,6 +126,7 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	gtk_box_pack_start(GTK_BOX(form_box), username_label, FALSE, FALSE, 0);
 
 	username_entry = gtk_entry_new();
+	gtk_style_context_add_class(gtk_widget_get_style_context(username_entry), "entry");
 	gtk_entry_set_placeholder_text(GTK_ENTRY(username_entry), "Enter your username");
 	gtk_entry_set_max_length(GTK_ENTRY(username_entry), 31);
 	gtk_widget_set_size_request(username_entry, -1, 35);
@@ -126,6 +139,7 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	gtk_box_pack_start(GTK_BOX(form_box), password_label, FALSE, FALSE, 0);
 
 	password_entry = gtk_entry_new();
+	gtk_style_context_add_class(gtk_widget_get_style_context(password_entry), "entry");
 	gtk_entry_set_placeholder_text(GTK_ENTRY(password_entry), "Enter your password");
 	gtk_entry_set_visibility(GTK_ENTRY(password_entry), FALSE);
 	gtk_entry_set_max_length(GTK_ENTRY(password_entry), 31);
@@ -139,11 +153,13 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	login_button = gtk_button_new_with_label("LOGIN");
 	gtk_widget_set_size_request(login_button, -1, 45);
 	g_signal_connect(login_button, "clicked", G_CALLBACK(on_login_clicked), ctx);
+	gtk_style_context_add_class(gtk_widget_get_style_context(login_button), "btn-primary");
 	gtk_box_pack_start(GTK_BOX(button_box), login_button, TRUE, TRUE, 0);
 
 	register_button = gtk_button_new_with_label("REGISTER");
 	gtk_widget_set_size_request(register_button, -1, 45);
 	g_signal_connect(register_button, "clicked", G_CALLBACK(on_register_clicked), ctx);
+	gtk_style_context_add_class(gtk_widget_get_style_context(register_button), "btn-secondary");
 	gtk_box_pack_start(GTK_BOX(button_box), register_button, TRUE, TRUE, 0);
 
 	gtk_box_pack_start(GTK_BOX(form_box), button_box, FALSE, FALSE, 0);
@@ -151,6 +167,7 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	status_label = gtk_label_new("");
 	gtk_label_set_line_wrap(GTK_LABEL(status_label), TRUE);
 	gtk_widget_set_margin_top(status_label, 10);
+	gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
 	gtk_box_pack_start(GTK_BOX(form_box), status_label, FALSE, FALSE, 0);
 
 	gtk_container_add(GTK_CONTAINER(form_frame), form_box);

@@ -1,0 +1,15 @@
+id,question,A,B,C,D,answer,difficulty
+301,Kiểu dữ liệu trong C để lưu số nguyên?,float,int,double,char,B,easy
+302,Từ khóa định nghĩa hằng trong C?,const,define,static,volatile,A,medium
+303,Phương thức nhập xuất trong Java?,Scanner,InputStream,Console,All of the above,D,medium
+304,Từ khóa tạo hàm ẩn danh trong JavaScript?,lambda,fn,function,def,C,easy
+305,Cấu trúc dữ liệu hàng đợi là?,FIFO,LIFO,BFS,DFS,A,medium
+306,Thuật toán tìm kiếm nhị phân độ phức tạp?,O(n),O(log n),O(n log n),O(1),B,medium
+307,Từ khóa để kế thừa lớp trong Java?,inherits,extends,implements,super,B,medium
+308,Phép so sánh nghiêm ngặt trong JavaScript?,==,===,!===,=:=,B,medium
+309,Khai báo interface trong C# dùng từ khóa?,interface,trait,proto,iface,A,easy
+310,Phương thức thêm phần tử vào ArrayList trong Java?,add(),push(),insert(),append(),A,easy
+311,Thư viện test mặc định trong Python?,unittest,pytest,nose,doctest,A,medium
+312,Kiểu dữ liệu ánh xạ trong Go?,map,set,dict,hash,map,A,medium
+313,Câu lệnh kết thúc vòng lặp sớm trong C?,break,stop,exit,halt,A,easy
+314,Thiết kế SOLID chữ L là?,Liskov Substitution,Limited Scope,Loose Coupling,Layered,Architecture,A,hard

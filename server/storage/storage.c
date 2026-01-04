@@ -5,6 +5,67 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdarg.h>
+
+static const char* LOG_PATHS[] = {
+    "data/logs/logs.txt",
+    "../data/logs/logs.txt",
+    "../../data/logs/logs.txt",
+    "data/logs.txt",
+    "../data/logs.txt",
+    NULL
+};
+
+static const char* RESULT_PATHS[] = {
+    "data/results/results.csv",
+    "../data/results/results.csv",
+    "../../data/results/results.csv",
+    "data/results.csv",
+    "../data/results.csv",
+    NULL
+};
+
+static const char* USER_PATHS[] = {
+    "data/users/users.txt",
+    "../data/users/users.txt",
+    "../../data/users/users.txt",
+    "data/users.txt",
+    "../data/users.txt",
+    NULL
+};
+
+static const char* QUESTION_WRITE_PREFIXES[] = {
+    "data/questions/",
+    "../data/questions/",
+    "../../data/questions/",
+    NULL
+};
+
+static FILE* fopen_first(const char** paths, const char* mode) {
+    FILE* file = NULL;
+    for (int i = 0; paths[i] != NULL; i++) {
+        file = fopen(paths[i], mode);
+        if (file) return file;
+    }
+    return NULL;
+}
+
+static void log_with_timestamp(const char* fmt, ...) {
+    char buffer[512];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    char ts[64];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    char line[600];
+    snprintf(line, sizeof(line), "[%s] %s", ts, buffer);
+    storage_save_log(line);
+}
 
 int storage_load_questions(const char* filename, char* questions, char* answers) {
     // If CSV extension, use CSV loader with randomization, limit to 20 questions
@@ -13,10 +74,29 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
         return storage_load_questions_csv(filename, questions, answers, 20);
     }
 
-    FILE* file = fopen(filename, "r");
+    // Try multiple candidate paths for TXT format
+    const char* prefixes[] = {
+        "",
+        "data/questions/",
+        "../data/questions/",
+        "../../data/questions/",
+        "data/",
+        "../data/",
+        "../../data/",
+        NULL
+    };
+    
+    FILE* file = NULL;
+    char filepath[512];
+    for (int i = 0; prefixes[i] != NULL; ++i) {
+        snprintf(filepath, sizeof(filepath), "%s%s", prefixes[i], filename);
+        file = fopen(filepath, "r");
+        if (file) break;
+    }
+    
     if (!file) {
         // Downgrade to INFO because callers often try multiple fallback paths
-        LOG_INFO("storage_load_questions: fopen failed (will try fallbacks if any)");
+        LOG_INFO("storage_load_questions: fopen failed for all paths");
         LOG_INFO(filename);
         LOG_INFO(strerror(errno));
         return -1;
@@ -79,14 +159,23 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
 }
 
 int storage_save_log(const char* log_entry) {
-    const char* paths[] = {"data/logs.txt", "../data/logs.txt", "../data/logs.txt", NULL};
-    FILE* file = NULL;
-    for (int i = 0; paths[i] != NULL; i++) {
-        file = fopen(paths[i], "a");
-        if (file) break;
-    }
+    FILE* file = fopen_first(LOG_PATHS, "a");
     if (!file) return -1;
     fprintf(file, "%s\n", log_entry);
+    fclose(file);
+    return 0;
+}
+
+int storage_save_result(int room_id, const char* host, const char* username, int score, int total, int time_taken) {
+    FILE* file = fopen_first(RESULT_PATHS, "a");
+    if (!file) return -1;
+
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    char ts[64];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    fprintf(file, "%s,%d,%s,%s,%d,%d,%d\n", ts, room_id, host ? host : "", username ? username : "", score, total, time_taken);
     fclose(file);
     return 0;
 }
@@ -96,17 +185,20 @@ int storage_register_user(const char* username, const char* password) {
         return -1;
     }
     
-    // Check if user already exists
-    const char* paths[] = {"data/users.txt", "../data/users.txt", "../data/users.txt", NULL};
     FILE* file = NULL;
     const char* user_path = NULL;
-    
-    for (int i = 0; paths[i] != NULL; i++) {
-        file = fopen(paths[i], "r");
-        if (file || (file = fopen(paths[i], "a+"))) {
-            user_path = paths[i];
+    // Try to open an existing users file, or create in the first preferred path
+    for (int i = 0; USER_PATHS[i] != NULL; i++) {
+        file = fopen(USER_PATHS[i], "r");
+        if (file) {
+            user_path = USER_PATHS[i];
             break;
         }
+    }
+    if (!file) {
+        // No existing file found; create in top-priority path
+        user_path = USER_PATHS[0];
+        file = fopen(user_path, "a+");
     }
     if (!file) return -1;
     
@@ -129,6 +221,7 @@ int storage_register_user(const char* username, const char* password) {
     fclose(file);
     
     LOG_INFO("User registered successfully");
+    log_with_timestamp("REGISTER user=%s", username);
     return 0;
 }
 
@@ -136,13 +229,7 @@ int storage_verify_login(const char* username, const char* password, int* out_ro
     if (!username || !password) return -1;
     
     // Check users from file with format: username:password:role
-    const char* paths[] = {"data/users.txt", "../data/users.txt", "../data/users.txt", NULL};
-    FILE* file = NULL;
-    
-    for (int i = 0; paths[i] != NULL; i++) {
-        file = fopen(paths[i], "r");
-        if (file) break;
-    }
+    FILE* file = fopen_first(USER_PATHS, "r");
     if (!file) return -1;
     
     char line[256];
@@ -164,10 +251,12 @@ int storage_verify_login(const char* username, const char* password, int* out_ro
                     *out_role = 0; // ROLE_PARTICIPANT
                 }
             }
+            log_with_timestamp("LOGIN_SUCCESS user=%s role=%s", username, parsed == 3 ? stored_role : "participant");
             return 0; // Login successful
         }
     }
     fclose(file);
+    log_with_timestamp("LOGIN_FAILED user=%s", username);
     return -1; // Login failed
 }
 
@@ -245,16 +334,35 @@ static void shuffle_indices(int* idx, int n) {
 }
 
 int storage_load_questions_csv(const char* filename, char* questions, char* answers, int max_questions) {
-    FILE* file = fopen(filename, "r");
+    // Try multiple candidate paths, including data/questions/ subdirectory structure
+    const char* prefixes[] = {
+        "",
+        "data/questions/",
+        "../data/questions/",
+        "../../data/questions/",
+        "data/",
+        "../data/",
+        "../../data/",
+        NULL
+    };
+    
+    FILE* file = NULL;
+    char filepath[512];
+    for (int i = 0; prefixes[i] != NULL; ++i) {
+        snprintf(filepath, sizeof(filepath), "%s%s", prefixes[i], filename);
+        file = fopen(filepath, "r");
+        if (file) break;
+    }
+    
     if (!file) {
-        LOG_ERROR("storage_load_questions_csv: fopen failed");
+        LOG_ERROR("storage_load_questions_csv: fopen failed for all paths");
         LOG_ERROR(filename);
         LOG_ERROR(strerror(errno));
         return -1;
     }
 
     // Read all lines into memory (simple approach)
-    typedef struct { char* q; char* A; char* B; char* C; char* D; char ans; } Row;
+    typedef struct { char* q; char* A; char* B; char* C; char* D; char ans; char* diff; } Row;
     Row* rows = NULL;
     int rows_cap = 0, rows_len = 0;
     char line[2048];
@@ -266,7 +374,7 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
         char* fields[8] = {0};
         int nf = parse_csv_fields(line, fields, 8);
         if (nf < 7) { free_fields(fields, nf); continue; }
-        // fields: id, question, A, B, C, D, answer
+        // fields: id, question, A, B, C, D, answer[,difficulty]
         if (rows_len == rows_cap) {
             rows_cap = rows_cap ? rows_cap * 2 : 32;
             rows = (Row*)realloc(rows, rows_cap * sizeof(Row));
@@ -279,9 +387,10 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
         r.C = fields[4];
         r.D = fields[5];
         r.ans = fields[6][0]; // first char, e.g., 'A','B','C','D'
+        r.diff = (nf >= 8 && fields[7]) ? fields[7] : NULL;
         // Free unused fields[0] (id) and any surplus
         free(fields[0]);
-        for (int i = 7; i < nf; ++i) free(fields[i]);
+        for (int i = 8; i < nf; ++i) free(fields[i]);
         rows[rows_len++] = r;
     }
     fclose(file);
@@ -316,8 +425,9 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
         strncat(b, r->B, sizeof(b) - 1);
         strncat(c, r->C, sizeof(c) - 1);
         strncat(d, r->D, sizeof(d) - 1);
+        const char* diff = (r->diff && strlen(r->diff) > 0) ? r->diff : "medium";
         char opts_line[1024];
-        snprintf(opts_line, sizeof(opts_line), "A.%s|B.%s|C.%s|D.%s", a, b, c, d);
+        snprintf(opts_line, sizeof(opts_line), "A.%s|B.%s|C.%s|D.%s^%s", a, b, c, d, diff);
         strcat(questions, opts_line);
         if (answers[0] != '\0') strcat(answers, ",");
         char ansbuf[2] = { r->ans, '\0' };
@@ -335,6 +445,7 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
         free(rows[i].B);
         free(rows[i].C);
         free(rows[i].D);
+        if (rows[i].diff) free(rows[i].diff);
     }
     free(rows);
     free(idx);
@@ -349,13 +460,11 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
 int storage_save_csv_bank(const char* filename, const char* csv_data) {
     if (!filename || !csv_data) return -1;
     
-    // Try multiple paths for data directory
-    const char* prefixes[] = {"data/", "../data/", "../data/", NULL};
     char full_path[256];
     FILE* file = NULL;
     
-    for (int i = 0; prefixes[i] != NULL; i++) {
-        snprintf(full_path, sizeof(full_path), "%s%s", prefixes[i], filename);
+    for (int i = 0; QUESTION_WRITE_PREFIXES[i] != NULL; i++) {
+        snprintf(full_path, sizeof(full_path), "%s%s", QUESTION_WRITE_PREFIXES[i], filename);
         file = fopen(full_path, "w");
         if (file) break;
     }
@@ -375,4 +484,144 @@ int storage_save_csv_bank(const char* filename, const char* csv_data) {
     storage_save_log(log_msg);
     
     return 0;
+}
+
+// Load practice questions filtered by difficulty
+int storage_load_practice_questions(const char* filename, int easy_count, int med_count, int hard_count,
+                                     char* questions, char* answers) {
+    // Try multiple candidate paths
+    const char* prefixes[] = {
+        "",
+        "data/questions/",
+        "../data/questions/",
+        "../../data/questions/",
+        NULL
+    };
+    
+    FILE* file = NULL;
+    char filepath[512];
+    for (int i = 0; prefixes[i] != NULL; ++i) {
+        snprintf(filepath, sizeof(filepath), "%s%s", prefixes[i], filename);
+        file = fopen(filepath, "r");
+        if (file) break;
+    }
+    
+    if (!file) {
+        LOG_ERROR("storage_load_practice_questions: failed to open file");
+        return -1;
+    }
+
+    // Parse CSV and bucket by difficulty
+    typedef struct { char q[256]; char opts[4][128]; char ans; char diff[16]; } QRow;
+    QRow easy_rows[50], med_rows[50], hard_rows[50];
+    int e_cnt = 0, m_cnt = 0, h_cnt = 0;
+    
+    char line[2048];
+    while (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\n\r")] = 0;
+        if (line[0] == '\0' || line[0] == 'i') continue; // skip empty or header
+        
+        char* fields[8] = {0};
+        int nf = parse_csv_fields(line, fields, 8);
+        if (nf < 7) { free_fields(fields, nf); continue; }
+        
+        // Parse row: id, question, A, B, C, D, answer, difficulty
+        QRow qr;
+        strncpy(qr.q, fields[1], sizeof(qr.q) - 1);
+        qr.q[sizeof(qr.q) - 1] = '\0';
+        for (int i = 0; i < 4; i++) {
+            strncpy(qr.opts[i], fields[2 + i], sizeof(qr.opts[i]) - 1);
+            qr.opts[i][sizeof(qr.opts[i]) - 1] = '\0';
+        }
+        qr.ans = fields[6][0];
+        
+        // Get difficulty (default medium)
+        const char* diff_str = (nf >= 8 && fields[7]) ? fields[7] : "medium";
+        strncpy(qr.diff, diff_str, sizeof(qr.diff) - 1);
+        qr.diff[sizeof(qr.diff) - 1] = '\0';
+        
+        // Bucket by difficulty
+        if (strncmp(qr.diff, "easy", 4) == 0 && e_cnt < 50) {
+            easy_rows[e_cnt++] = qr;
+        } else if (strncmp(qr.diff, "hard", 4) == 0 && h_cnt < 50) {
+            hard_rows[h_cnt++] = qr;
+        } else if (m_cnt < 50) {
+            med_rows[m_cnt++] = qr;
+        }
+        
+        free_fields(fields, nf);
+    }
+    fclose(file);
+    
+    // Shuffle each bucket
+    int e_idx[50], m_idx[50], h_idx[50];
+    for (int i = 0; i < e_cnt; i++) e_idx[i] = i;
+    for (int i = 0; i < m_cnt; i++) m_idx[i] = i;
+    for (int i = 0; i < h_cnt; i++) h_idx[i] = i;
+    
+    srand((unsigned)time(NULL));
+    shuffle_indices(e_idx, e_cnt);
+    shuffle_indices(m_idx, m_cnt);
+    shuffle_indices(h_idx, h_cnt);
+    
+    // Build output string
+    questions[0] = '\0';
+    answers[0] = '\0';
+    int out_count = 0;
+    
+    // Add easy questions
+    int take_easy = (easy_count < e_cnt) ? easy_count : e_cnt;
+    for (int i = 0; i < take_easy && out_count < MAX_QUESTIONS; i++) {
+        QRow* qr = &easy_rows[e_idx[i]];
+        if (out_count > 0) strcat(questions, ";");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        char opts[512];
+        snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
+                 qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
+        strcat(questions, opts);
+        
+        if (out_count > 0) strcat(answers, ",");
+        char ans_str[2] = {qr->ans, '\0'};
+        strcat(answers, ans_str);
+        out_count++;
+    }
+    
+    // Add medium questions
+    int take_med = (med_count < m_cnt) ? med_count : m_cnt;
+    for (int i = 0; i < take_med && out_count < MAX_QUESTIONS; i++) {
+        QRow* qr = &med_rows[m_idx[i]];
+        if (out_count > 0) strcat(questions, ";");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        char opts[512];
+        snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
+                 qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
+        strcat(questions, opts);
+        
+        if (out_count > 0) strcat(answers, ",");
+        char ans_str[2] = {qr->ans, '\0'};
+        strcat(answers, ans_str);
+        out_count++;
+    }
+    
+    // Add hard questions
+    int take_hard = (hard_count < h_cnt) ? hard_count : h_cnt;
+    for (int i = 0; i < take_hard && out_count < MAX_QUESTIONS; i++) {
+        QRow* qr = &hard_rows[h_idx[i]];
+        if (out_count > 0) strcat(questions, ";");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        char opts[512];
+        snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
+                 qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
+        strcat(questions, opts);
+        
+        if (out_count > 0) strcat(answers, ",");
+        char ans_str[2] = {qr->ans, '\0'};
+        strcat(answers, ans_str);
+        out_count++;
+    }
+    
+    return out_count > 0 ? 0 : -1;
 }

@@ -1,0 +1,31 @@
+id,question,A,B,C,D,answer,difficulty
+1,TCP là giao thức?,Kết nối,Không kết nối,Kết nối với mã hóa,Đa hướng,A,easy
+2,UDP là giao thức?,Kết nối,Không kết nối,Đảm bảo thứ tự,Mã hóa,B,easy
+3,HTTP hoạt động ở tầng?,Vận chuyển,Mạng,Vật lý,Ứng dụng,D,easy
+4,Lệnh ping sử dụng giao thức?,TCP,UDP,ICMP,HTTP,C,easy
+5,Cổng mặc định SSH?,20,21,22,23,C,easy
+6,Thiết bị hoạt động ở lớp vật lý?,Repeater,Switch,Router,Firewall,A,easy
+7,Cổng FTP mặc định?,21,22,23,80,A,easy
+8,DHCP cấp phát gì?,Hostname,IP Address,MAC Address,Port Number,B,easy
+9,Địa chỉ loopback IPv4?,127.0.0.1,192.168.1.1,10.0.0.1,0.0.0.0,A,easy
+10,IPv4 có bao nhiêu bit?,16,32,64,128,B,easy
+11,Cổng mặc định của HTTP?,21,22,80,443,C,medium
+12,Cổng mặc định của HTTPS?,80,110,143,443,D,medium
+13,DNS thường dùng cổng nào?,21,25,53,443,C,medium
+14,Switch hoạt động ở tầng?,Vật lý,Liên kết dữ liệu,Mạng,Ứng dụng,B,medium
+15,Router hoạt động ở tầng?,Vật lý,Liên kết dữ liệu,Mạng,Ứng dụng,C,medium
+16,Giao thức dùng bắt tay 3 bước?,TCP,UDP,ICMP,ARP,A,medium
+17,Thiết bị giảm collision domain?,Hub,Switch,Repeater,Bridge,B,medium
+18,Dải địa chỉ IPv4 private lớp C?,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,224.0.0.0/4,A,medium
+19,Wireshark dùng để?,Soạn thảo mã,Phân tích gói tin,Quản lý cơ sở dữ liệu,Giả lập mạng,B,medium
+20,Địa chỉ MAC có bao nhiêu bit?,32,48,64,128,B,medium
+21,OSPF là giao thức định tuyến?,Distance Vector,Link State,Hybrid,Path Vector,B,hard
+22,BGP chạy trên giao thức vận chuyển nào?,UDP,TCP,ICMP,None,B,hard
+23,Số hop tối đa của RIP?,15,16,255,Không giới hạn,B,hard
+24,NAT overload còn gọi là?,Static NAT,Dynamic NAT,PAT,Proxy,C,hard
+25,VLAN Trunking Protocol (VTP) mode nào không forward?,Server,Client,Transparent,Forward,C,hard
+26,Spanning Tree Protocol (STP) chống?,Broadcast storm,Switching loop,DDoS,Spoofing,B,hard
+27,EIGRP sử dụng metric dựa trên?,Hop count,Bandwidth & Delay,Cost,Path vector,B,hard
+28,IPv6 có bao nhiêu bit?,32,64,128,256,C,hard
+29,Địa chỉ IPv6 unicast link-local bắt đầu?,FE80,FF00,2001,FC00,A,hard
+30,MPLS hoạt động ở tầng nào?,Layer 2,Layer 3,Layer 2.5,Layer 4,C,hard

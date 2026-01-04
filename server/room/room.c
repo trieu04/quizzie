@@ -136,8 +136,10 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     // Try multiple paths for questions file
     char filepath[256];
     const char* prefixes[] = {
+        "data/questions/",
+        "../data/questions/",
+        "../../data/questions/",
         "data/",
-        "../data/",
         "../data/",
         NULL
     };
@@ -237,7 +239,14 @@ int room_set_config(ServerContext* ctx, int host_sock, const char* config) {
             
             // Reload questions
             char filepath[256];
-            const char* prefixes[] = { "data/", "../data/", "../data/", NULL };
+            const char* prefixes[] = {
+                "data/questions/",
+                "../data/questions/",
+                "../../data/questions/",
+                "data/",
+                "../data/",
+                NULL
+            };
             int loaded = 0;
             for (int j = 0; prefixes[j] != NULL; ++j) {
                 snprintf(filepath, sizeof(filepath), "%s%s", prefixes[j], room->question_file);
@@ -290,6 +299,8 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
                 client->quiz_start_time = 0;
                 client->score = 0;
                 client->total = 0;
+                memset(client->answers, 0, sizeof(client->answers));
+                client->current_question = 0;
                 
                 room->clients[room->client_count] = client;
                 room->client_count++;
@@ -343,6 +354,16 @@ int room_start_quiz(ServerContext* ctx, int host_sock) {
             char response[32];
             snprintf(response, sizeof(response), "QUIZ_STARTED:%d", room->client_count);
             net_send_to_client(host_sock, response, strlen(response));
+
+                // Log start
+                char log_entry[256];
+                time_t now = time(NULL);
+                struct tm* tm_info = localtime(&now);
+                char ts[64];
+                strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+                snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_START room_id=%d host=%s clients=%d duration=%d", 
+                         ts, room->id, room->host_username, room->client_count, room->quiz_duration);
+                storage_save_log(log_entry);
             
             return 0;
         }
@@ -379,12 +400,29 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
     snprintf(response, sizeof(response), "QUESTIONS:%d;%s", room->quiz_duration, room->questions);
     net_send_to_client(client_sock, response, strlen(response));
     
+    // If client has saved answers (reconnect scenario), send them
+    if (strlen(client->answers) > 0) {
+        char ans_msg[128];
+        snprintf(ans_msg, sizeof(ans_msg), "ANSWERS:%s,%d", client->answers, client->current_question);
+        net_send_to_client(client_sock, ans_msg, strlen(ans_msg));
+    }
+    
     // Notify host
     char notify[128];
     snprintf(notify, sizeof(notify), "PARTICIPANT_STARTED:%s", client->username);
     net_send_to_client(room->host_sock, notify, strlen(notify));
     
     LOG_INFO("Client started quiz");
+
+        // Log participant start
+        char log_entry[256];
+        time_t now = time(NULL);
+        struct tm* tm_info = localtime(&now);
+        char ts[64];
+        strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+        snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_TAKE_START room_id=%d user=%s", 
+                 ts, room->id, client->username);
+        storage_save_log(log_entry);
     return 0;
 }
 
@@ -410,6 +448,10 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
             int taking = 0;
             int submitted = 0;
             int waiting = 0;
+            int submitted_count = 0;
+            int sum_percent = 0;
+            int best_percent = 0;
+            int last_percent = 0;
             
             char participants[BUFFER_SIZE] = "";
             
@@ -419,12 +461,18 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                     
                     if (c->has_submitted) {
                         submitted++;
+                        submitted_count++;
                         // Add submitted participant info
                         char info[128];
                         snprintf(info, sizeof(info), "%s%s:S:%d/%d", 
                             strlen(participants) > 0 ? "," : "",
                             c->username, c->score, c->total);
                         strcat(participants, info);
+
+                        int percent = (c->total > 0) ? (c->score * 100 / c->total) : 0;
+                        sum_percent += percent;
+                        if (percent > best_percent) best_percent = percent;
+                        last_percent = percent;
                     } else if (c->is_taking_quiz) {
                         taking++;
                         // Add taking participant info with remaining time
@@ -449,7 +497,9 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                 }
             }
             
-            snprintf(response, sizeof(response), "ROOM_STATS:%d,%d,%d;%s", waiting, taking, submitted, participants);
+            int avg_percent = submitted_count > 0 ? sum_percent / submitted_count : 0;
+            snprintf(response, sizeof(response), "ROOM_STATS:%d,%d,%d;%s;avg=%d,best=%d,last=%d", 
+                     waiting, taking, submitted, participants, avg_percent, best_percent, last_percent);
             net_send_to_client(host_sock, response, strlen(response));
             return 0;
     
@@ -527,6 +577,7 @@ int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers
     snprintf(log_entry, sizeof(log_entry), "[%s] SUBMIT user=%s room_id=%d score=%d/%d time=%ds", 
              ts, client->username, room->id, score, total, time_taken);
     storage_save_log(log_entry);
+    storage_save_result(room->id, room->host_username, client->username, score, total, time_taken);
     return 0;
 }
 
@@ -549,6 +600,15 @@ int room_delete(ServerContext* ctx, int room_id) {
             ctx->room_count--;
             
             LOG_INFO("Room deleted");
+
+                // Log room deletion
+                char log_entry[256];
+                time_t now = time(NULL);
+                struct tm* tm_info = localtime(&now);
+                char ts[64];
+                strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+                snprintf(log_entry, sizeof(log_entry), "[%s] ROOM_DELETED id=%d", ts, room_id);
+                storage_save_log(log_entry);
             return 0;
         }
     }

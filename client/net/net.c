@@ -40,7 +40,35 @@ int net_connect(ClientContext* ctx, const char* ip, int port) {
 
 int net_send(ClientContext* ctx, const char* data, size_t len) {
     if (!ctx || ctx->socket_fd == -1) return -1;
-    return send(ctx->socket_fd, data, len, 0);
+    
+    // Add newline delimiter if not present
+    char buffer[BUFFER_SIZE + 64];
+    size_t total_len = len;
+    if (len < sizeof(buffer) - 2 && (len == 0 || data[len-1] != '\n')) {
+        memcpy(buffer, data, len);
+        buffer[len] = '\n';
+        buffer[len+1] = '\0';
+        total_len = len + 1;
+        data = buffer;
+    }
+    
+    // Send with partial write handling
+    size_t sent = 0;
+    while (sent < total_len) {
+        int result = send(ctx->socket_fd, data + sent, total_len - sent, 0);
+        if (result > 0) {
+            sent += result;
+        } else if (result < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                usleep(1000);
+                continue;
+            }
+            return -1;
+        } else {
+            break;
+        }
+    }
+    return sent;
 }
 
 int net_receive(ClientContext* ctx, char* buffer, size_t len) {

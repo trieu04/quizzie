@@ -13,6 +13,7 @@
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 100
 #define MAX_ROOMS 10
+#define MAX_QUESTIONS 50
 
 // Error handling macros
 #define LOG_ERROR(msg) fprintf(stderr, "[ERROR] %s\n", msg)

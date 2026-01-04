@@ -11,11 +11,13 @@ struct ClientContext;
 typedef enum {
     PAGE_LOGIN,
     PAGE_DASHBOARD,
+    PAGE_PRACTICE,
     PAGE_ROOM_LIST,
     PAGE_QUIZ,
     PAGE_RESULT,
     PAGE_HOST_PANEL,  // New: Host control panel
-    PAGE_ADMIN_PANEL  // Admin panel for CSV upload and room creation
+    PAGE_ADMIN_PANEL,  // Admin panel for room management
+    PAGE_ADMIN_UPLOAD  // Admin CSV upload page
 } AppState;
 
 typedef enum {
@@ -33,6 +35,7 @@ typedef struct {
     char question[256];
     char options[4][128];
     char correct_answer;
+    char difficulty[16];
 } Question;
 
 typedef struct {
@@ -65,6 +68,7 @@ typedef struct ClientContext {
     
     // Room state
     int current_room_id;
+    int last_room_id;            // For reconnect attempt
     bool is_host;
     QuizState room_state;
     RoomInfo rooms[MAX_ROOMS_DISPLAY];
@@ -79,6 +83,9 @@ typedef struct ClientContext {
     int stats_waiting;
     int stats_taking;
     int stats_submitted;
+    int stats_avg_percent;
+    int stats_best_percent;
+    int stats_last_percent;
     
     // Quiz state
     Question questions[MAX_QUESTIONS];
@@ -98,6 +105,8 @@ typedef struct ClientContext {
     // Message buffer for server responses
     char message_buffer[BUFFER_SIZE];
     bool has_pending_message;
+    char recv_buffer[BUFFER_SIZE * 2];  // Buffer for incomplete messages
+    int recv_len;                        // Current buffer length
     
     // Status message for UI
     char status_message[128];

@@ -9,45 +9,98 @@
 
 int net_setup(ServerContext* ctx) {
     ctx->server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (ctx->server_fd < 0) return -1;
+    if (ctx->server_fd < 0) {
+        LOG_ERROR("socket() failed");
+        perror("socket");
+        return -1;
+    }
+
+    // Enable address reuse
+    int opt = 1;
+    setsockopt(ctx->server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(SERVER_PORT);
 
-    if (bind(ctx->server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) return -1;
-    if (listen(ctx->server_fd, 5) < 0) return -1;
+    if (bind(ctx->server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        LOG_ERROR("bind() failed");
+        perror("bind");
+        return -1;
+    }
+    if (listen(ctx->server_fd, 5) < 0) {
+        LOG_ERROR("listen() failed");
+        perror("listen");
+        return -1;
+    }
 
     // Set non-blocking
     int flags = fcntl(ctx->server_fd, F_GETFL, 0);
-    fcntl(ctx->server_fd, F_SETFL, flags | O_NONBLOCK);
+    if (flags < 0 || fcntl(ctx->server_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        LOG_ERROR("fcntl() failed setting non-blocking");
+        perror("fcntl");
+    }
 
     // Setup epoll
     ctx->epoll_fd = epoll_create1(0);
+    if (ctx->epoll_fd < 0) {
+        LOG_ERROR("epoll_create1() failed");
+        perror("epoll_create1");
+        return -1;
+    }
     struct epoll_event event = {0};
     event.events = EPOLLIN;
     event.data.fd = ctx->server_fd;
-    epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ctx->server_fd, &event);
+    if (epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ctx->server_fd, &event) < 0) {
+        LOG_ERROR("epoll_ctl() failed");
+        perror("epoll_ctl");
+        return -1;
+    }
 
     return 0;
 }
 
 int net_accept_client(ServerContext* ctx) {
+    if (ctx->client_count >= MAX_CLIENTS) {
+        LOG_ERROR("Max clients reached, rejecting connection");
+        int temp_sock = accept(ctx->server_fd, NULL, NULL);
+        if (temp_sock >= 0) {
+            close(temp_sock);
+        }
+        return -1;
+    }
+
     int client_sock = accept(ctx->server_fd, NULL, NULL);
     if (client_sock >= 0) {
         int flags = fcntl(client_sock, F_GETFL, 0);
-        fcntl(client_sock, F_SETFL, flags | O_NONBLOCK);
+        if (flags < 0 || fcntl(client_sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+            LOG_ERROR("fcntl() failed for client socket");
+            close(client_sock);
+            return -1;
+        }
 
         struct epoll_event event = {0};
         event.events = EPOLLIN;
         event.data.fd = client_sock;
-        epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, client_sock, &event);
+        if (epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, client_sock, &event) < 0) {
+            LOG_ERROR("epoll_ctl() failed for client socket");
+            close(client_sock);
+            return -1;
+        }
 
+        // Initialize client
         ctx->clients[ctx->client_count].sock = client_sock;
+        memset(ctx->clients[ctx->client_count].username, 0, sizeof(ctx->clients[ctx->client_count].username));
         strcpy(ctx->clients[ctx->client_count].username, "User");
+        ctx->clients[ctx->client_count].role = ROLE_PARTICIPANT;
+        ctx->clients[ctx->client_count].is_taking_quiz = false;
+        ctx->clients[ctx->client_count].has_submitted = false;
+        memset(ctx->clients[ctx->client_count].answers, 0, sizeof(ctx->clients[ctx->client_count].answers));
+        memset(ctx->clients[ctx->client_count].recv_buffer, 0, sizeof(ctx->clients[ctx->client_count].recv_buffer));
+        ctx->clients[ctx->client_count].recv_len = 0;
         ctx->client_count++;
-        printf("[TCP] Client connected: fd=%d\n", client_sock);
+        printf("[TCP] Client connected: fd=%d (total: %d)\n", client_sock, ctx->client_count);
         LOG_INFO("New client connected");
         
         // Log to file
@@ -63,13 +116,39 @@ int net_accept_client(ServerContext* ctx) {
 }
 
 int net_send_to_client(int sock, const char* data, size_t len) {
-    int result = send(sock, data, len, 0);
-    if (result > 0) {
-        printf("[TCP] SEND fd=%d: %.*s\n", sock, (int)result, data);
-    } else if (result < 0) {
-        printf("[TCP] SEND ERROR fd=%d: %s\n", sock, strerror(errno));
+    // Add newline delimiter if not present
+    char buffer[BUFFER_SIZE + 64];
+    size_t total_len = len;
+    if (len < sizeof(buffer) - 2 && (len == 0 || data[len-1] != '\n')) {
+        memcpy(buffer, data, len);
+        buffer[len] = '\n';
+        buffer[len+1] = '\0';
+        total_len = len + 1;
+        data = buffer;
     }
-    return result;
+
+    // Send with partial write handling
+    size_t sent = 0;
+    while (sent < total_len) {
+        int result = send(sock, data + sent, total_len - sent, 0);
+        if (result > 0) {
+            sent += result;
+        } else if (result < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Would block, continue later
+                usleep(1000);
+                continue;
+            }
+            printf("[TCP] SEND ERROR fd=%d: %s\n", sock, strerror(errno));
+            return -1;
+        } else {
+            break;
+        }
+    }
+    if (sent > 0) {
+        printf("[TCP] SEND fd=%d: %.*s\n", sock, (int)(sent > 100 ? 100 : sent), data);
+    }
+    return sent;
 }
 
 int net_receive_from_client(int sock, char* buffer, size_t len) {
@@ -88,5 +167,37 @@ void net_close_client(ServerContext* ctx, int sock) {
     printf("[TCP] Closing client connection: fd=%d\n", sock);
     epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
-    // Remove from clients array if needed
+    
+    // Remove from clients array
+    int found_idx = -1;
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].sock == sock) {
+            found_idx = i;
+            break;
+        }
+    }
+    
+    if (found_idx >= 0) {
+        // Remove from all rooms
+        for (int r = 0; r < ctx->room_count; r++) {
+            Room* room = &ctx->rooms[r];
+            for (int c = 0; c < room->client_count; c++) {
+                if (room->clients[c] && room->clients[c]->sock == sock) {
+                    // Shift remaining clients
+                    for (int j = c; j < room->client_count - 1; j++) {
+                        room->clients[j] = room->clients[j+1];
+                    }
+                    room->client_count--;
+                    break;
+                }
+            }
+        }
+        
+        // Shift remaining clients in main array
+        for (int i = found_idx; i < ctx->client_count - 1; i++) {
+            ctx->clients[i] = ctx->clients[i+1];
+        }
+        ctx->client_count--;
+        printf("[TCP] Client removed from array (remaining: %d)\n", ctx->client_count);
+    }
 }

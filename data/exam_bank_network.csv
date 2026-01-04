@@ -1,4 +1,0 @@
-id,question,A,B,C,D,answer
-201,Port mặc định HTTP?,80,443,8080,8443,A
-202,Độ dài địa chỉ IPv4?,16,32,64,128,B
-203,ARP dùng để?,Phân giải IP thành MAC,Phân giải MAC thành IP,Định tuyến,Dịch vụ tên miền,A

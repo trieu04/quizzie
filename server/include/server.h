@@ -28,6 +28,10 @@ typedef struct {
     bool has_submitted;        // Whether client has submitted answers
     int score;                 // Client's score
     int total;                 // Total questions
+    char answers[50];          // Current answers for resume (A-D or - per question)
+    int current_question;      // Last viewed question index
+    char recv_buffer[BUFFER_SIZE * 2];  // Buffer for incomplete messages
+    int recv_len;              // Current buffer length
 } Client;
 
 typedef struct {
@@ -44,7 +48,7 @@ typedef struct {
 } Room;
 
 typedef struct {
-    char type[20];
+    char type[32];
     char data[1000];
 } Message;
 

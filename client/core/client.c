@@ -25,6 +25,10 @@ ClientContext* client_init() {
     ctx->quiz_start_time = 0;
     ctx->room_state = QUIZ_STATE_WAITING;
     ctx->participant_count = 0;
+    ctx->last_room_id = -1;
+    ctx->stats_avg_percent = 0;
+    ctx->stats_best_percent = 0;
+    ctx->stats_last_percent = 0;
     strcpy(ctx->question_file, "questions.txt");
     memset(ctx->answers, 0, sizeof(ctx->answers));
     strcpy(ctx->status_message, "");
@@ -88,6 +92,8 @@ static void parse_questions(ClientContext* ctx, const char* data) {
     while (question_token && ctx->question_count < MAX_QUESTIONS) {
         Question* q = &ctx->questions[ctx->question_count];
         q->id = ctx->question_count + 1;
+        strncpy(q->difficulty, "medium", sizeof(q->difficulty) - 1);
+        q->difficulty[sizeof(q->difficulty) - 1] = '\0';
 
         // Split question and options by '?'
         char* question_mark = strchr(question_token, '?');
@@ -103,6 +109,14 @@ static void parse_questions(ClientContext* ctx, const char* data) {
             char options_copy[512];
             strncpy(options_copy, options_str, sizeof(options_copy) - 1);
             options_copy[sizeof(options_copy) - 1] = '\0';
+
+            // Extract optional difficulty suffix after '^'
+            char* diff_sep = strrchr(options_copy, '^');
+            if (diff_sep && *(diff_sep + 1)) {
+                *diff_sep = '\0';
+                strncpy(q->difficulty, diff_sep + 1, sizeof(q->difficulty) - 1);
+                q->difficulty[sizeof(q->difficulty) - 1] = '\0';
+            }
 
             // Split options by '|'
             char* saveptr2;
@@ -172,19 +186,31 @@ static void parse_room_list(ClientContext* ctx, const char* data) {
 static void parse_room_stats(ClientContext* ctx, const char* data) {
     // Format: "waiting,taking,submitted;user1:status:value,user2:status:value,..."
     ctx->participant_count = 0;
+    ctx->stats_waiting = 0;
+    ctx->stats_taking = 0;
+    ctx->stats_submitted = 0;
+    ctx->stats_avg_percent = 0;
+    ctx->stats_best_percent = 0;
+    ctx->stats_last_percent = 0;
     
     char buffer[BUFFER_SIZE];
     strncpy(buffer, data, BUFFER_SIZE - 1);
     buffer[BUFFER_SIZE - 1] = '\0';
     
     // Parse summary
-    char* semicolon = strchr(buffer, ';');
-    if (semicolon) {
-        *semicolon = '\0';
+    char* first = strchr(buffer, ';');
+    if (first) {
+        *first = '\0';
         sscanf(buffer, "%d,%d,%d", &ctx->stats_waiting, &ctx->stats_taking, &ctx->stats_submitted);
-        
-        // Parse participants
-        char* participants = semicolon + 1;
+
+        char* participants = first + 1;
+        char* agg_section = NULL;
+        char* second = strchr(participants, ';');
+        if (second) {
+            *second = '\0';
+            agg_section = second + 1;
+        }
+
         if (strlen(participants) > 0) {
             char* saveptr;
             char* token = strtok_r(participants, ",", &saveptr);
@@ -210,6 +236,24 @@ static void parse_room_stats(ClientContext* ctx, const char* data) {
                     ctx->participant_count++;
                 }
                 token = strtok_r(NULL, ",", &saveptr);
+            }
+        }
+
+        if (agg_section && strlen(agg_section) > 0) {
+            char agg_copy[256];
+            strncpy(agg_copy, agg_section, sizeof(agg_copy) - 1);
+            agg_copy[sizeof(agg_copy) - 1] = '\0';
+            char* saveptr2;
+            char* token = strtok_r(agg_copy, ",", &saveptr2);
+            while (token) {
+                char key[16] = {0};
+                int val = 0;
+                if (sscanf(token, "%15[^=]=%d", key, &val) == 2) {
+                    if (strcmp(key, "avg") == 0) ctx->stats_avg_percent = val;
+                    else if (strcmp(key, "best") == 0) ctx->stats_best_percent = val;
+                    else if (strcmp(key, "last") == 0) ctx->stats_last_percent = val;
+                }
+                token = strtok_r(NULL, ",", &saveptr2);
             }
         }
     }
@@ -277,6 +321,7 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         int room_id = 0, duration = 300, state = 0;
         if (sscanf(data, "%d,%d,%d", &room_id, &duration, &state) >= 1) {
             ctx->current_room_id = room_id;
+            ctx->last_room_id = room_id;  // Save for reconnect
             ctx->quiz_duration = duration;
             ctx->room_state = (QuizState)state;
             ctx->quiz_available = (state == QUIZ_STATE_STARTED);
@@ -399,6 +444,84 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
     else if (strcmp(type, "UPLOAD_FAILED") == 0) {
         set_status_with_data(ctx, "Upload failed: ", data);
     }
+    else if (strcmp(type, "ANSWERS") == 0) {
+        // Format: ANSWERS:answer_string,current_question
+        char ans_str[MAX_QUESTIONS + 1] = {0};
+        int cur_q = 0;
+        char* comma = strchr(data, ',');
+        if (comma) {
+            size_t len = comma - data;
+            if (len < sizeof(ans_str)) {
+                strncpy(ans_str, data, len);
+                ans_str[len] = '\0';
+                cur_q = atoi(comma + 1);
+            }
+        } else {
+            strncpy(ans_str, data, sizeof(ans_str) - 1);
+        }
+        
+        // Restore answers
+        for (int i = 0; i < (int)strlen(ans_str) && i < MAX_QUESTIONS; i++) {
+            if (ans_str[i] != '-' && ans_str[i] != '\0') {
+                ctx->answers[i] = ans_str[i];
+            }
+        }
+        if (cur_q >= 0 && cur_q < ctx->question_count) {
+            ctx->current_question = cur_q;
+        }
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "Reconnected! Progress restored.");
+    }
+    else if (strcmp(type, "PRACTICE_QUESTIONS") == 0) {
+        // Format: PRACTICE_QUESTIONS:questions_string,answers_string
+        char q_str[BUFFER_SIZE] = {0};
+        char ans_str[MAX_QUESTIONS + 1] = {0};
+        
+        char* comma = strchr(data, ',');
+        if (comma) {
+            size_t q_len = comma - data;
+            if (q_len < sizeof(q_str)) {
+                strncpy(q_str, data, q_len);
+                q_str[q_len] = '\0';
+            }
+            strncpy(ans_str, comma + 1, sizeof(ans_str) - 1);
+        }
+        
+        // Parse questions string (same format as QUESTIONS)
+        if (strlen(q_str) > 0) {
+            parse_questions(ctx, q_str);
+            ctx->is_practice = true;
+            ctx->current_room_id = -1;
+            ctx->is_host = false;
+            ctx->quiz_start_time = time(NULL);
+            
+            // Set practice answers for scoring
+            if (strlen(ans_str) > 0) {
+                strncpy(ctx->practice_answers, ans_str, sizeof(ctx->practice_answers) - 1);
+            }
+            
+            ctx->current_state = PAGE_QUIZ;
+            ctx->force_page_refresh = true;
+            snprintf(ctx->status_message, sizeof(ctx->status_message),
+                "Practice loaded! %d questions, %d seconds", ctx->question_count, ctx->quiz_duration);
+        } else {
+            strncpy(ctx->status_message, "Failed to load practice questions", sizeof(ctx->status_message) - 1);
+        }
+    }
+    else if (strcmp(type, "REJOINED") == 0) {
+        // Format: REJOINED:room_id,duration,state,remaining
+        int room_id = 0, duration = 300, state = 0, remaining = 0;
+        if (sscanf(data, "%d,%d,%d,%d", &room_id, &duration, &state, &remaining) >= 3) {
+            ctx->current_room_id = room_id;
+            ctx->quiz_duration = remaining > 0 ? remaining : duration;
+            ctx->room_state = (QuizState)state;
+            ctx->quiz_available = (state == QUIZ_STATE_STARTED);
+        }
+        ctx->is_host = false;
+        snprintf(ctx->status_message, sizeof(ctx->status_message),
+            "Rejoined room %d! Time remaining: %d seconds", ctx->current_room_id, ctx->quiz_duration);
+        ctx->current_state = PAGE_QUIZ;
+        ctx->force_page_refresh = true;
+    }
     else if (strcmp(type, "ERROR") == 0) {
         snprintf(ctx->status_message, sizeof(ctx->status_message), "Error: %.100s", data);
     }
@@ -416,12 +539,48 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
 int client_receive_message(ClientContext* ctx) {
     if (!ctx || !ctx->connected) return -1;
 
-    char buffer[BUFFER_SIZE] = { 0 };
-    int result = net_receive_nonblocking(ctx, buffer, BUFFER_SIZE, 10);
+    char temp_buf[BUFFER_SIZE] = { 0 };
+    int result = net_receive_nonblocking(ctx, temp_buf, BUFFER_SIZE - 1, 10);
 
     if (result > 0) {
-        client_process_server_message(ctx, buffer);
-        return result;
+        // Append to receive buffer
+        if (ctx->recv_len + result < (int)sizeof(ctx->recv_buffer) - 1) {
+            memcpy(ctx->recv_buffer + ctx->recv_len, temp_buf, result);
+            ctx->recv_len += result;
+            ctx->recv_buffer[ctx->recv_len] = '\0';
+        } else {
+            // Buffer overflow, reset
+            ctx->recv_len = 0;
+            ctx->recv_buffer[0] = '\0';
+            return 0;
+        }
+        
+        // Parse complete messages (delimited by \n)
+        char* line_start = ctx->recv_buffer;
+        char* newline;
+        int processed = 0;
+        while ((newline = strchr(line_start, '\n')) != NULL) {
+            *newline = '\0';  // Terminate the line
+            
+            if (strlen(line_start) > 0) {
+                client_process_server_message(ctx, line_start);
+                processed++;
+            }
+            
+            line_start = newline + 1;
+        }
+        
+        // Move remaining incomplete data to start of buffer
+        int remaining = strlen(line_start);
+        if (remaining > 0) {
+            memmove(ctx->recv_buffer, line_start, remaining + 1);
+            ctx->recv_len = remaining;
+        } else {
+            ctx->recv_buffer[0] = '\0';
+            ctx->recv_len = 0;
+        }
+        
+        return processed > 0 ? result : 0;
     }
     else if (result == -2) {
         // Connection closed

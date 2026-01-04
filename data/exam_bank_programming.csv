@@ -1,4 +1,0 @@
-id,question,A,B,C,D,answer
-301,Kiểu dữ liệu trong C để lưu số nguyên?,float,int,double,char,B
-302,Từ khóa định nghĩa hằng trong C?,const,define,static,volatile,A
-303,Phương thức nhập xuất trong Java?,Scanner,InputStream,Console,All of the above,D

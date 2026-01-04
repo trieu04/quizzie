@@ -1,5 +1,0 @@
-1;Thủ đô của Việt Nam là gì?;A.Hà Nội|B.HCM|C.Hải Phòng|D.Đà Nẵng;A
-2;Số nguyên tố đầu tiên là?;A.1|B.2|C.3|D.5;B
-3;C là ngôn ngữ gì?;A.Hướng đối tượng|B.Biên dịch|C.Thông dịch|D.Scripting;B
-4;TCP hoạt động ở tầng nào?;A.Vận chuyển|B.Mạng|C.Vật lý|D.Ứng dụng;A
-5;Tác giả truyện Kiều?;A.Nguyễn Du|B.Nguyễn Trãi|C.Nam Cao|D.Hồ Xuân Hương;A

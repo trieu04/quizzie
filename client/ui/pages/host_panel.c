@@ -11,6 +11,8 @@ static GtkWidget *duration_entry = NULL;
 static GtkWidget *filename_entry = NULL;
 static GtkWidget *participant_list_box = NULL;
 static GtkWidget *stats_label = NULL;
+static GtkWidget *avg_level_bar = NULL;
+static GtkWidget *avg_detail_label = NULL;
 static GtkWidget *start_btn = NULL;
 static time_t last_stats_request = 0;
 static guint stats_timer_id = 0;
@@ -56,6 +58,7 @@ static void update_participant_list(ClientContext* ctx) {
         gtk_widget_set_margin_end(row, 5);
         gtk_widget_set_margin_top(row, 3);
         gtk_widget_set_margin_bottom(row, 3);
+        gtk_style_context_add_class(gtk_widget_get_style_context(row), "participant-row");
         
         const char* status_str = "Waiting";
         char info_str[64] = "";
@@ -180,14 +183,15 @@ static void on_leave_room_clicked(GtkWidget *widget, gpointer data) {
     ctx->is_host = false;
     ctx->room_state = QUIZ_STATE_WAITING;
     ctx->participant_count = 0;
-    ctx->current_state = PAGE_DASHBOARD;
+    AppState target = ctx->role == 1 ? PAGE_ADMIN_PANEL : PAGE_DASHBOARD;
+    ctx->current_state = target;
     
     if (stats_timer_id > 0) {
         g_source_remove(stats_timer_id);
         stats_timer_id = 0;
     }
     
-    ui_navigate_to_page(PAGE_DASHBOARD);
+    ui_navigate_to_page(target);
 }
 
 static void on_delete_room_clicked(GtkWidget *widget, gpointer data) {
@@ -203,19 +207,32 @@ static void on_delete_room_clicked(GtkWidget *widget, gpointer data) {
         ctx->is_host = false;
         ctx->room_state = QUIZ_STATE_WAITING;
         ctx->participant_count = 0;
-        ctx->current_state = PAGE_DASHBOARD;
+        AppState target = ctx->role == 1 ? PAGE_ADMIN_PANEL : PAGE_DASHBOARD;
+        ctx->current_state = target;
         
         if (stats_timer_id > 0) {
             g_source_remove(stats_timer_id);
             stats_timer_id = 0;
         }
         
-        ui_navigate_to_page(PAGE_DASHBOARD);
+        ui_navigate_to_page(target);
     }
 }
 
 GtkWidget* page_host_panel_create(ClientContext* ctx) {
+    status_label = NULL;
+    state_label = NULL;
+    duration_entry = NULL;
+    filename_entry = NULL;
+    participant_list_box = NULL;
+    stats_label = NULL;
+    avg_level_bar = NULL;
+    avg_detail_label = NULL;
+    start_btn = NULL;
+    last_stats_request = 0;
+    // stats_timer_id cleared in cleanup when leaving; ensure not duplicated
     GtkWidget *page = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_style_context_add_class(gtk_widget_get_style_context(page), "page");
     
     // Sidebar
     GtkWidget *sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -224,6 +241,7 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     gtk_widget_set_margin_end(sidebar, 10);
     gtk_widget_set_margin_top(sidebar, 10);
     gtk_widget_set_margin_bottom(sidebar, 10);
+    gtk_style_context_add_class(gtk_widget_get_style_context(sidebar), "card");
     
     GtkWidget *sidebar_title = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(sidebar_title), "<b>HOST PANEL</b>");
@@ -248,6 +266,9 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
     else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
     state_label = gtk_label_new(state_str);
+    gtk_style_context_add_class(gtk_widget_get_style_context(state_label), "pill");
+    gtk_style_context_add_class(gtk_widget_get_style_context(state_label),
+        ctx->room_state == QUIZ_STATE_STARTED ? "pill-warn" : "pill-success");
     gtk_box_pack_start(GTK_BOX(sidebar), state_label, FALSE, FALSE, 0);
     
     // Configuration
@@ -258,12 +279,14 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     GtkWidget *duration_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     GtkWidget *duration_label = gtk_label_new("Duration (s):");
     duration_entry = gtk_entry_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(duration_entry), "entry");
     char dur_str[16];
     snprintf(dur_str, sizeof(dur_str), "%d", ctx->quiz_duration);
     gtk_entry_set_text(GTK_ENTRY(duration_entry), dur_str);
     gtk_entry_set_width_chars(GTK_ENTRY(duration_entry), 10);
     GtkWidget *set_dur_btn = gtk_button_new_with_label("Set");
     g_signal_connect(set_dur_btn, "clicked", G_CALLBACK(on_set_duration_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(set_dur_btn), "btn-secondary");
     gtk_box_pack_start(GTK_BOX(duration_box), duration_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(duration_box), duration_entry, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(duration_box), set_dur_btn, FALSE, FALSE, 0);
@@ -272,9 +295,11 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     GtkWidget *file_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     GtkWidget *file_label = gtk_label_new("Question File:");
     filename_entry = gtk_entry_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(filename_entry), "entry");
     gtk_entry_set_text(GTK_ENTRY(filename_entry), ctx->question_file);
     GtkWidget *set_file_btn = gtk_button_new_with_label("Set File");
     g_signal_connect(set_file_btn, "clicked", G_CALLBACK(on_set_file_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(set_file_btn), "btn-secondary");
     gtk_box_pack_start(GTK_BOX(file_box), file_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(file_box), filename_entry, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(file_box), set_file_btn, FALSE, FALSE, 0);
@@ -288,19 +313,23 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     if (ctx->room_state == QUIZ_STATE_WAITING) {
         start_btn = gtk_button_new_with_label("Start Quiz");
         g_signal_connect(start_btn, "clicked", G_CALLBACK(on_start_quiz_clicked), ctx);
+        gtk_style_context_add_class(gtk_widget_get_style_context(start_btn), "btn-primary");
         gtk_box_pack_start(GTK_BOX(sidebar), start_btn, FALSE, FALSE, 5);
     } else {
         GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh Stats");
         g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_stats_clicked), ctx);
+        gtk_style_context_add_class(gtk_widget_get_style_context(refresh_btn), "btn-secondary");
         gtk_box_pack_start(GTK_BOX(sidebar), refresh_btn, FALSE, FALSE, 5);
     }
     
     GtkWidget *leave_btn = gtk_button_new_with_label("Leave Room");
     g_signal_connect(leave_btn, "clicked", G_CALLBACK(on_leave_room_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(leave_btn), "btn-ghost");
     gtk_box_pack_end(GTK_BOX(sidebar), leave_btn, FALSE, FALSE, 0);
     
     GtkWidget *delete_btn = gtk_button_new_with_label("Delete Room");
     g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_room_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(delete_btn), "btn-secondary");
     gtk_box_pack_end(GTK_BOX(sidebar), delete_btn, FALSE, FALSE, 0);
     
     gtk_box_pack_start(GTK_BOX(page), sidebar, FALSE, FALSE, 0);
@@ -315,8 +344,10 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     gtk_widget_set_margin_end(main_area, 20);
     gtk_widget_set_margin_top(main_area, 20);
     gtk_widget_set_margin_bottom(main_area, 20);
+    gtk_style_context_add_class(gtk_widget_get_style_context(main_area), "card");
     
     status_label = gtk_label_new(ctx->status_message);
+    gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
     gtk_box_pack_start(GTK_BOX(main_area), status_label, FALSE, FALSE, 0);
     
     GtkWidget *stats_title = gtk_label_new(NULL);
@@ -329,7 +360,28 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
              ctx->stats_waiting, ctx->stats_taking, ctx->stats_submitted,
              ctx->stats_waiting + ctx->stats_taking + ctx->stats_submitted);
     stats_label = gtk_label_new(stats_text);
+    gtk_style_context_add_class(gtk_widget_get_style_context(stats_label), "status-bar");
     gtk_box_pack_start(GTK_BOX(main_area), stats_label, FALSE, FALSE, 5);
+
+    GtkWidget *graph_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    GtkWidget *graph_title = gtk_label_new("Average Score");
+    gtk_widget_set_halign(graph_title, GTK_ALIGN_START);
+    avg_level_bar = gtk_level_bar_new_for_interval(0.0, 100.0);
+    gtk_level_bar_set_value(GTK_LEVEL_BAR(avg_level_bar), ctx->stats_avg_percent);
+    gtk_widget_set_size_request(avg_level_bar, -1, 22);
+    gtk_style_context_add_class(gtk_widget_get_style_context(avg_level_bar), "progress-bar");
+
+    char avg_detail[128];
+    snprintf(avg_detail, sizeof(avg_detail), "Avg: %d%% | Best: %d%% | Last: %d%%",
+             ctx->stats_avg_percent, ctx->stats_best_percent, ctx->stats_last_percent);
+    avg_detail_label = gtk_label_new(avg_detail);
+    gtk_style_context_add_class(gtk_widget_get_style_context(avg_detail_label), "progress-label");
+    gtk_widget_set_halign(avg_detail_label, GTK_ALIGN_START);
+
+    gtk_box_pack_start(GTK_BOX(graph_box), graph_title, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(graph_box), avg_level_bar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(graph_box), avg_detail_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(main_area), graph_box, FALSE, FALSE, 5);
     
     GtkWidget *separator2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(main_area), separator2, FALSE, FALSE, 5);
@@ -365,6 +417,16 @@ void page_host_panel_update(ClientContext* ctx) {
                  ctx->stats_waiting, ctx->stats_taking, ctx->stats_submitted,
                  ctx->stats_waiting + ctx->stats_taking + ctx->stats_submitted);
         gtk_label_set_text(GTK_LABEL(stats_label), stats_text);
+    }
+
+    if (avg_level_bar) {
+        gtk_level_bar_set_value(GTK_LEVEL_BAR(avg_level_bar), ctx->stats_avg_percent);
+    }
+    if (avg_detail_label) {
+        char avg_detail[128];
+        snprintf(avg_detail, sizeof(avg_detail), "Avg: %d%% | Best: %d%% | Last: %d%%",
+                 ctx->stats_avg_percent, ctx->stats_best_percent, ctx->stats_last_percent);
+        gtk_label_set_text(GTK_LABEL(avg_detail_label), avg_detail);
     }
     
     if (status_label && strlen(ctx->status_message) > 0) {

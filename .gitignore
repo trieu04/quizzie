@@ -29,14 +29,6 @@ out/
 dist/
 obj/
 
-# Autotools/CMake
-Makefile
-Makefile.in
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-compile_commands.json
-
 # Packaged archives
 *.tar
 *.gz

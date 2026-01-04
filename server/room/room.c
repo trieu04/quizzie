@@ -1,6 +1,6 @@
-#include "../../include/room.h"
-#include "../../include/storage.h"
-#include "../../include/net.h"
+#include "../include/room.h"
+#include "../include/storage.h"
+#include "../include/net.h"
 #include <dirent.h>
 #include <time.h>
 #include <stdio.h>
@@ -138,7 +138,7 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     const char* prefixes[] = {
         "data/",
         "../data/",
-        "../../data/",
+        "../data/",
         NULL
     };
 
@@ -237,7 +237,7 @@ int room_set_config(ServerContext* ctx, int host_sock, const char* config) {
             
             // Reload questions
             char filepath[256];
-            const char* prefixes[] = { "data/", "../data/", "../../data/", NULL };
+            const char* prefixes[] = { "data/", "../data/", "../data/", NULL };
             int loaded = 0;
             for (int j = 0; prefixes[j] != NULL; ++j) {
                 snprintf(filepath, sizeof(filepath), "%s%s", prefixes[j], room->question_file);

@@ -1,7 +1,7 @@
-#include "../../include/server.h"
-#include "../../include/net.h"
-#include "../../include/storage.h"
-#include "../../include/room.h"
+#include "../include/server.h"
+#include "../include/net.h"
+#include "../include/storage.h"
+#include "../include/room.h"
 #include <sys/epoll.h>
 
 ServerContext* server_init() {
@@ -51,8 +51,8 @@ void server_run(ServerContext* ctx) {
     const char* candidates[] = {
         "data/questions.txt",
         "../data/questions.txt",
+        "../data/questions.txt",
         "../../data/questions.txt",
-        "../../../data/questions.txt",
         NULL
     };
     int loaded = 0;

@@ -33,7 +33,7 @@ static void on_practice_clicked(GtkWidget *widget, gpointer data) {
     char rel1[256], rel2[256], rel3[256];
     snprintf(rel1, sizeof(rel1), "data/practice_bank_%s.csv", subject);
     snprintf(rel2, sizeof(rel2), "../data/practice_bank_%s.csv", subject);
-    snprintf(rel3, sizeof(rel3), "../../data/practice_bank_%s.csv", subject);
+    snprintf(rel3, sizeof(rel3), "../data/practice_bank_%s.csv", subject);
     const char* paths[] = {rel1, rel2, rel3, NULL};
     int loaded = 0;
     for (int i = 0; paths[i] != NULL; i++) {

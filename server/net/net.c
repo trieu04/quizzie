@@ -1,6 +1,6 @@
-#include "../../include/net.h"
-#include "../../include/server.h"
-#include "../../include/storage.h"
+#include "../include/net.h"
+#include "../include/server.h"
+#include "../include/storage.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>

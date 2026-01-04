@@ -1,4 +1,4 @@
-#include "../../include/storage.h"
+#include "../include/storage.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -79,7 +79,7 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
 }
 
 int storage_save_log(const char* log_entry) {
-    const char* paths[] = {"data/logs.txt", "../data/logs.txt", "../../data/logs.txt", NULL};
+    const char* paths[] = {"data/logs.txt", "../data/logs.txt", "../data/logs.txt", NULL};
     FILE* file = NULL;
     for (int i = 0; paths[i] != NULL; i++) {
         file = fopen(paths[i], "a");
@@ -97,7 +97,7 @@ int storage_register_user(const char* username, const char* password) {
     }
     
     // Check if user already exists
-    const char* paths[] = {"data/users.txt", "../data/users.txt", "../../data/users.txt", NULL};
+    const char* paths[] = {"data/users.txt", "../data/users.txt", "../data/users.txt", NULL};
     FILE* file = NULL;
     const char* user_path = NULL;
     
@@ -136,7 +136,7 @@ int storage_verify_login(const char* username, const char* password, int* out_ro
     if (!username || !password) return -1;
     
     // Check users from file with format: username:password:role
-    const char* paths[] = {"data/users.txt", "../data/users.txt", "../../data/users.txt", NULL};
+    const char* paths[] = {"data/users.txt", "../data/users.txt", "../data/users.txt", NULL};
     FILE* file = NULL;
     
     for (int i = 0; paths[i] != NULL; i++) {
@@ -350,7 +350,7 @@ int storage_save_csv_bank(const char* filename, const char* csv_data) {
     if (!filename || !csv_data) return -1;
     
     // Try multiple paths for data directory
-    const char* prefixes[] = {"data/", "../data/", "../../data/", NULL};
+    const char* prefixes[] = {"data/", "../data/", "../data/", NULL};
     char full_path[256];
     FILE* file = NULL;
     

@@ -27,6 +27,7 @@ bin/
 lib/
 out/
 dist/
+obj/
 
 # Autotools/CMake
 Makefile

@@ -184,6 +184,9 @@ static gboolean update_server_messages(gpointer data) {
                 case PAGE_ADMIN_UPLOAD:
                     page_admin_upload_update(ctx);
                     break;
+                case PAGE_HISTORY:
+                    page_history_update(ctx);
+                    break;
             }
         }
         }
@@ -292,6 +295,9 @@ void ui_navigate_to_page(AppState state) {
             break;
         case PAGE_ADMIN_UPLOAD:
             new_page = create_admin_upload_page(ctx);
+            break;
+        case PAGE_HISTORY:
+            new_page = page_history_create(ctx);
             break;
     }
     

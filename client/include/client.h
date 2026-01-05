@@ -18,7 +18,8 @@ typedef enum {
     PAGE_RESULT,
     PAGE_HOST_PANEL,  // New: Host control panel
     PAGE_ADMIN_PANEL,  // Admin panel for room management
-    PAGE_ADMIN_UPLOAD  // Admin CSV upload page
+    PAGE_ADMIN_UPLOAD,  // Admin CSV upload page
+    PAGE_HISTORY       // Test history page
 } AppState;
 
 typedef enum {
@@ -126,5 +127,8 @@ void client_run(ClientContext* ctx);
 int client_send_message(ClientContext* ctx, const char* type, const char* data);
 int client_receive_message(ClientContext* ctx);
 void client_process_server_message(ClientContext* ctx, const char* message);
+
+// Storage functions
+int save_quiz_result(ClientContext* ctx, const char* quiz_type, const char* subject);
 
 #endif // CLIENT_H

@@ -35,6 +35,7 @@ GtkWidget* page_result_create(ClientContext* ctx);
 GtkWidget* page_host_panel_create(ClientContext* ctx);
 GtkWidget* create_admin_panel_page(ClientContext* ctx);
 GtkWidget* create_admin_upload_page(ClientContext* ctx);
+GtkWidget* page_history_create(ClientContext* ctx);
 
 // Page update functions
 void page_login_update(ClientContext* ctx);
@@ -47,6 +48,7 @@ void page_result_update(ClientContext* ctx);
 void page_host_panel_update(ClientContext* ctx);
 void page_admin_panel_update(ClientContext* ctx);
 void page_admin_upload_update(ClientContext* ctx);
+void page_history_update(ClientContext* ctx);
 
 // Page cleanup functions
 void page_quiz_cleanup();

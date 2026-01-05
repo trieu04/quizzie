@@ -17,7 +17,7 @@ static void on_login_link_clicked(GtkWidget *widget, gpointer data) {
 	(void)widget;
 	ClientContext* ctx = (ClientContext*)data;
 	ctx->current_state = PAGE_LOGIN;
-	ctx->force_page_refresh = true;
+	ui_navigate_to_page(PAGE_LOGIN);
 }
 
 static void on_register_clicked(GtkWidget *widget, gpointer data) {

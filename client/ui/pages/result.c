@@ -45,6 +45,13 @@ static void on_dashboard_clicked(GtkWidget *widget, gpointer data) {
 }
 
 GtkWidget* page_result_create(ClientContext* ctx) {
+    // Save the result when showing the result page
+    if (ctx->username[0] != '\0') {
+        const char* quiz_type = ctx->is_practice ? "Practice" : "Exam";
+        const char* subject = ctx->subject[0] != '\0' ? ctx->subject : "Unknown";
+        save_quiz_result(ctx, quiz_type, subject);
+    }
+    
     GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 20);
     gtk_style_context_add_class(gtk_widget_get_style_context(page), "page");
     gtk_widget_set_halign(page, GTK_ALIGN_CENTER);

@@ -45,6 +45,9 @@ typedef struct {
     int quiz_duration;         // Quiz duration in seconds (0 = unlimited)
     QuizState state;           // Current quiz state
     char question_file[128];   // Selected question file
+    time_t start_time;         // Scheduled start time (0 = immediate)
+    time_t end_time;           // Expiration time (0 = no expiration)
+    bool randomize_answers;    // Whether to randomize answer order
 } Room;
 
 typedef struct {

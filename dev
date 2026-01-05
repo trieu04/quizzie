@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+import subprocess
+import sys
+import os
+import signal
+import select
+
+def build_project():
+    """Build the project using make"""
+    print("Building project...")
+    result = subprocess.run(['make', 'server'], cwd=os.path.dirname(os.path.abspath(__file__)))
+    return result.returncode == 0
+
+def run_server():
+    """Start the server process"""
+    print("Starting server...")
+    process = subprocess.Popen(
+        ['./bin/server'],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+    return process
+
+def stop_server(process):
+    """Stop the server process"""
+    if process and process.poll() is None:
+        print("\nStopping server...")
+        process.send_signal(signal.SIGINT)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+def main():
+    # Initial build and start
+    if not build_project():
+        print("Build failed. Exiting.")
+        sys.exit(1)
+    
+    server_process = run_server()
+    
+    print("\nServer is running. Press 'r' + Enter to rebuild and restart. Press 'q' + Enter to quit.\n")
+    
+    try:
+        while True:
+            # Check if server process is still running
+            if server_process.poll() is not None:
+                print("Server process terminated unexpectedly.")
+                break
+            
+            # Read server output (non-blocking)
+            while True:
+                ready, _, _ = select.select([server_process.stdout], [], [], 0.1)
+                if ready:
+                    line = server_process.stdout.readline()
+                    if line:
+                        print(line, end='')
+                    else:
+                        break
+                else:
+                    break
+            
+            # Check for user input (non-blocking)
+            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            if ready:
+                user_input = sys.stdin.readline().strip().lower()
+                
+                if user_input == 'r':
+                    stop_server(server_process)
+                    
+                    if not build_project():
+                        print("Build failed. Exiting.")
+                        break
+                    
+                    server_process = run_server()
+                    print("\nServer restarted. Press 'r' + Enter to rebuild and restart. Press 'q' + Enter to quit.\n")
+                
+                elif user_input == 'q':
+                    print("Quitting...")
+                    stop_server(server_process)
+                    break
+    
+    except KeyboardInterrupt:
+        print("\nReceived Ctrl+C...")
+        stop_server(server_process)
+    
+    print("Development server stopped.")
+
+if __name__ == '__main__':
+    main()

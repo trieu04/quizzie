@@ -18,8 +18,9 @@ typedef enum {
     PAGE_RESULT,
     PAGE_HOST_PANEL,  // New: Host control panel
     PAGE_ADMIN_PANEL,  // Admin panel for room management
-    PAGE_ADMIN_UPLOAD,  // Admin CSV upload page
-    PAGE_HISTORY       // Test history page
+    PAGE_ADMIN_UPLOAD, // Admin CSV upload page
+    PAGE_HISTORY,       // Test history page
+    PAGE_CREATE_ROOM   // New: Create Room configuration page
 } AppState;
 
 typedef enum {
@@ -27,6 +28,14 @@ typedef enum {
     QUIZ_STATE_STARTED = 1,
     QUIZ_STATE_FINISHED = 2
 } QuizState;
+
+typedef struct {
+    char name[128];
+    int easy_cnt;
+    int med_cnt;
+    int hard_cnt;
+    int total_cnt;
+} QuestionFile;
 
 #define MAX_QUESTIONS 20
 #define MAX_ROOMS_DISPLAY 20
@@ -116,6 +125,13 @@ typedef struct ClientContext {
     
     // Status message for UI
     char status_message[128];
+    
+    // Available files handling
+    // Available files handling
+    char available_files[4096];
+    QuestionFile available_files_list[50];
+    int available_files_count;
+    bool files_refreshed;
 } ClientContext;
 
 // Function prototypes

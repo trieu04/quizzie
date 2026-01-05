@@ -7,20 +7,17 @@
 
 static GtkWidget *status_label = NULL;
 static GtkWidget *state_label = NULL;
-static GtkWidget *duration_entry = NULL;
-static GtkWidget *filename_entry = NULL;
 static GtkWidget *participant_list_box = NULL;
 static GtkWidget *stats_label = NULL;
 static GtkWidget *avg_level_bar = NULL;
 static GtkWidget *avg_detail_label = NULL;
-static GtkWidget *start_btn = NULL;
 static time_t last_stats_request = 0;
 static guint stats_timer_id = 0;
 
 static gboolean request_stats_periodically(gpointer data) {
     ClientContext* ctx = (ClientContext*)data;
     
-    if (ctx->room_state == QUIZ_STATE_STARTED && ctx->connected) {
+    if (ctx->connected) {
         time_t now = time(NULL);
         if (now - last_stats_request >= 2) {
             client_send_message(ctx, "GET_STATS", "");
@@ -87,19 +84,6 @@ static void update_participant_list(ClientContext* ctx) {
     gtk_widget_show_all(participant_list_box);
 }
 
-static void on_start_quiz_clicked(GtkWidget *widget, gpointer data) {
-    (void)widget;
-    ClientContext* ctx = (ClientContext*)data;
-    
-    if (ctx->connected && ctx->room_state == QUIZ_STATE_WAITING) {
-        client_send_message(ctx, "START_GAME", "");
-        strcpy(ctx->status_message, "Starting quiz...");
-        if (status_label) {
-            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        }
-    }
-}
-
 static void on_refresh_stats_clicked(GtkWidget *widget, gpointer data) {
     (void)widget;
     ClientContext* ctx = (ClientContext*)data;
@@ -111,67 +95,6 @@ static void on_refresh_stats_clicked(GtkWidget *widget, gpointer data) {
             gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         }
         last_stats_request = time(NULL);
-    }
-}
-
-static void on_set_duration_clicked(GtkWidget *widget, gpointer data) {
-    (void)widget;
-    ClientContext* ctx = (ClientContext*)data;
-    
-    if (ctx->room_state != QUIZ_STATE_WAITING) {
-        strcpy(ctx->status_message, "Cannot change after quiz started");
-        if (status_label) {
-            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        }
-        return;
-    }
-    
-    const char* duration_str = gtk_entry_get_text(GTK_ENTRY(duration_entry));
-    int duration = atoi(duration_str);
-    
-    if (duration > 0) {
-        ctx->quiz_duration = duration;
-        char config[128];
-        snprintf(config, sizeof(config), "%d,%s", ctx->quiz_duration, ctx->question_file);
-        client_send_message(ctx, "SET_CONFIG", config);
-        strcpy(ctx->status_message, "Duration updated");
-    } else {
-        strcpy(ctx->status_message, "Invalid duration");
-    }
-    
-    if (status_label) {
-        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    }
-}
-
-static void on_set_file_clicked(GtkWidget *widget, gpointer data) {
-    (void)widget;
-    ClientContext* ctx = (ClientContext*)data;
-    
-    if (ctx->room_state != QUIZ_STATE_WAITING) {
-        strcpy(ctx->status_message, "Cannot change after quiz started");
-        if (status_label) {
-            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        }
-        return;
-    }
-    
-    const char* filename = gtk_entry_get_text(GTK_ENTRY(filename_entry));
-    
-    if (strlen(filename) > 0) {
-        strncpy(ctx->question_file, filename, sizeof(ctx->question_file) - 1);
-        ctx->question_file[sizeof(ctx->question_file) - 1] = '\0';
-        
-        char config[128];
-        snprintf(config, sizeof(config), "%d,%s", ctx->quiz_duration, ctx->question_file);
-        client_send_message(ctx, "SET_CONFIG", config);
-        strcpy(ctx->status_message, "File updated");
-    } else {
-        strcpy(ctx->status_message, "Invalid filename");
-    }
-    
-    if (status_label) {
-        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
     }
 }
 
@@ -222,15 +145,12 @@ static void on_delete_room_clicked(GtkWidget *widget, gpointer data) {
 GtkWidget* page_host_panel_create(ClientContext* ctx) {
     status_label = NULL;
     state_label = NULL;
-    duration_entry = NULL;
-    filename_entry = NULL;
     participant_list_box = NULL;
     stats_label = NULL;
     avg_level_bar = NULL;
     avg_detail_label = NULL;
-    start_btn = NULL;
     last_stats_request = 0;
-    // stats_timer_id cleared in cleanup when leaving; ensure not duplicated
+
     GtkWidget *page = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(page), "page");
     
@@ -262,65 +182,25 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     gtk_label_set_markup(GTK_LABEL(status_title), "<b>Status:</b>");
     gtk_box_pack_start(GTK_BOX(sidebar), status_title, FALSE, FALSE, 10);
     
-    const char* state_str = "Waiting";
-    if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
-    else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
-    state_label = gtk_label_new(state_str);
+    state_label = gtk_label_new("Room Active");
     gtk_style_context_add_class(gtk_widget_get_style_context(state_label), "pill");
-    gtk_style_context_add_class(gtk_widget_get_style_context(state_label),
-        ctx->room_state == QUIZ_STATE_STARTED ? "pill-warn" : "pill-success");
+    gtk_style_context_add_class(gtk_widget_get_style_context(state_label), "pill-success");
     gtk_box_pack_start(GTK_BOX(sidebar), state_label, FALSE, FALSE, 0);
-    
-    // Configuration
-    GtkWidget *config_title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(config_title), "<b>Configuration:</b>");
-    gtk_box_pack_start(GTK_BOX(sidebar), config_title, FALSE, FALSE, 10);
-    
-    GtkWidget *duration_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    GtkWidget *duration_label = gtk_label_new("Duration (s):");
-    duration_entry = gtk_entry_new();
-    gtk_style_context_add_class(gtk_widget_get_style_context(duration_entry), "entry");
-    char dur_str[16];
-    snprintf(dur_str, sizeof(dur_str), "%d", ctx->quiz_duration);
-    gtk_entry_set_text(GTK_ENTRY(duration_entry), dur_str);
-    gtk_entry_set_width_chars(GTK_ENTRY(duration_entry), 10);
-    GtkWidget *set_dur_btn = gtk_button_new_with_label("Set");
-    g_signal_connect(set_dur_btn, "clicked", G_CALLBACK(on_set_duration_clicked), ctx);
-    gtk_style_context_add_class(gtk_widget_get_style_context(set_dur_btn), "btn-secondary");
-    gtk_box_pack_start(GTK_BOX(duration_box), duration_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(duration_box), duration_entry, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(duration_box), set_dur_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(sidebar), duration_box, FALSE, FALSE, 5);
-    
-    GtkWidget *file_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    GtkWidget *file_label = gtk_label_new("Question File:");
-    filename_entry = gtk_entry_new();
-    gtk_style_context_add_class(gtk_widget_get_style_context(filename_entry), "entry");
-    gtk_entry_set_text(GTK_ENTRY(filename_entry), ctx->question_file);
-    GtkWidget *set_file_btn = gtk_button_new_with_label("Set File");
-    g_signal_connect(set_file_btn, "clicked", G_CALLBACK(on_set_file_clicked), ctx);
-    gtk_style_context_add_class(gtk_widget_get_style_context(set_file_btn), "btn-secondary");
-    gtk_box_pack_start(GTK_BOX(file_box), file_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(file_box), filename_entry, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(file_box), set_file_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(sidebar), file_box, FALSE, FALSE, 5);
+
+    char q_count_text[64];
+    snprintf(q_count_text, sizeof(q_count_text), "Quiz Questions: %d", ctx->total_questions);
+    GtkWidget *q_count_label = gtk_label_new(q_count_text);
+    gtk_box_pack_start(GTK_BOX(sidebar), q_count_label, FALSE, FALSE, 10);
     
     // Actions
     GtkWidget *actions_title = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(actions_title), "<b>Actions:</b>");
     gtk_box_pack_start(GTK_BOX(sidebar), actions_title, FALSE, FALSE, 10);
     
-    if (ctx->room_state == QUIZ_STATE_WAITING) {
-        start_btn = gtk_button_new_with_label("Start Quiz");
-        g_signal_connect(start_btn, "clicked", G_CALLBACK(on_start_quiz_clicked), ctx);
-        gtk_style_context_add_class(gtk_widget_get_style_context(start_btn), "btn-primary");
-        gtk_box_pack_start(GTK_BOX(sidebar), start_btn, FALSE, FALSE, 5);
-    } else {
-        GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh Stats");
-        g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_stats_clicked), ctx);
-        gtk_style_context_add_class(gtk_widget_get_style_context(refresh_btn), "btn-secondary");
-        gtk_box_pack_start(GTK_BOX(sidebar), refresh_btn, FALSE, FALSE, 5);
-    }
+    GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh Stats");
+    g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_stats_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(refresh_btn), "btn-secondary");
+    gtk_box_pack_start(GTK_BOX(sidebar), refresh_btn, FALSE, FALSE, 5);
     
     GtkWidget *leave_btn = gtk_button_new_with_label("Leave Room");
     g_signal_connect(leave_btn, "clicked", G_CALLBACK(on_leave_room_clicked), ctx);
@@ -399,10 +279,8 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     
     gtk_box_pack_start(GTK_BOX(page), main_area, TRUE, TRUE, 0);
     
-    // Start periodic stats updates if quiz is running
-    if (ctx->room_state == QUIZ_STATE_STARTED) {
-        stats_timer_id = g_timeout_add(2000, request_stats_periodically, ctx);
-    }
+    // Auto-refresh stats always
+    stats_timer_id = g_timeout_add(2000, request_stats_periodically, ctx);
     
     return page;
 }
@@ -431,13 +309,6 @@ void page_host_panel_update(ClientContext* ctx) {
     
     if (status_label && strlen(ctx->status_message) > 0) {
         gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    }
-    
-    if (state_label) {
-        const char* state_str = "Waiting";
-        if (ctx->room_state == QUIZ_STATE_STARTED) state_str = "Quiz Active";
-        else if (ctx->room_state == QUIZ_STATE_FINISHED) state_str = "Finished";
-        gtk_label_set_text(GTK_LABEL(state_label), state_str);
     }
 }
 

@@ -86,16 +86,54 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     room->host_sock = host_sock;
     strncpy(room->host_username, username, sizeof(room->host_username) - 1);
     room->client_count = 0;  // Host is not counted as participant
-    room->state = QUIZ_STATE_WAITING;
+    room->state = QUIZ_STATE_STARTED; // Auto-start (time-based)
     room->quiz_duration = 300;  // Default 5 minutes
     strcpy(room->question_file, "exam_bank_programming.csv");
+    room->start_time = 0;
+    room->end_time = 0;
+    room->randomize_answers = false;
     
-    // Parse config if provided: accepts formats
-    //  - "duration,filename"
-    //  - "subject,duration"
-    //  - "subject,duration,filename"
-    if (config && strlen(config) > 0) {
-        char config_copy[256];
+    // Parse config
+    // New format: duration|start_time|end_time|filename|easy|med|hard|any|rand_ans
+    // Legacy formats: "duration,filename" or "subject,duration" etc.
+    
+    bool loaded = false;
+    
+    if (config && strchr(config, '|')) {
+        // New format
+        char config_copy[512];
+        strncpy(config_copy, config, sizeof(config_copy) - 1);
+        config_copy[sizeof(config_copy) - 1] = '\0';
+        
+        char *token = strtok(config_copy, "|");
+        if (token) room->quiz_duration = atoi(token);
+        
+        token = strtok(NULL, "|");
+        if (token) room->start_time = atol(token);
+        
+        token = strtok(NULL, "|");
+        if (token) room->end_time = atol(token);
+        
+        token = strtok(NULL, "|");
+        if (token) strncpy(room->question_file, token, sizeof(room->question_file) - 1);
+
+        int easy=0, med=0, hard=0, any=0;
+        token = strtok(NULL, "|"); if (token) easy = atoi(token);
+        token = strtok(NULL, "|"); if (token) med = atoi(token);
+        token = strtok(NULL, "|"); if (token) hard = atoi(token);
+        token = strtok(NULL, "|"); if (token) any = atoi(token);
+        
+        token = strtok(NULL, "|"); 
+        if (token) room->randomize_answers = (atoi(token) != 0);
+        
+        // Load questions
+        if (storage_load_filtered_questions(room->question_file, easy, med, hard, any, 
+                                            room->randomize_answers, room->questions, room->correct_answers) == 0) {
+            loaded = true;
+        }
+    } else if (config && strlen(config) > 0) {
+        // Legacy format fallback
+         char config_copy[256];
         strncpy(config_copy, config, sizeof(config_copy) - 1);
         config_copy[sizeof(config_copy) - 1] = '\0';
         char* tok1 = strtok(config_copy, ",");
@@ -125,33 +163,29 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
                 }
             }
         }
-    }
-
-    // Find the client and set username
-    Client* client = find_client(ctx, host_sock);
-    if (client) {
-        strncpy(client->username, username, sizeof(client->username) - 1);
-    }
-
-    // Try multiple paths for questions file
-    char filepath[256];
-    const char* prefixes[] = {
-        "./data/questions/",
-        "../data/questions/",
-        "../../data/questions/",
-        "../../../data/questions/",
-        "data/",
-        "../data/",
-        NULL
-    };
-
-    int loaded = 0;
-    for (int i = 0; prefixes[i] != NULL; ++i) {
-        snprintf(filepath, sizeof(filepath), "%s%s", prefixes[i], room->question_file);
-        if (storage_load_questions(filepath, room->questions, room->correct_answers) == 0) {
-            loaded = 1;
-            break;
+        
+        // Legacy load
+        char filepath[256];
+        const char* prefixes[] = {
+            "data/questions/",
+            "../data/questions/",
+            "../../data/questions/",
+            "data/",
+            "../data/",
+            NULL
+        };
+        for (int i = 0; prefixes[i] != NULL; ++i) {
+            snprintf(filepath, sizeof(filepath), "%s%s", prefixes[i], room->question_file);
+            if (storage_load_questions(filepath, room->questions, room->correct_answers) == 0) {
+                loaded = true;
+                break;
+            }
         }
+    } else {
+        // No config, default load
+        char filepath[256];
+        snprintf(filepath, sizeof(filepath), "data/questions/%s", room->question_file);
+        if (storage_load_questions(filepath, room->questions, room->correct_answers) == 0) loaded = true;
     }
 
     if (!loaded) {
@@ -160,8 +194,17 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
         return -1;
     }
 
+    // Count total questions from correct_answers
+    int total_q = 0;
+    if (strlen(room->correct_answers) > 0) {
+        total_q = 1;
+        for (const char* p = room->correct_answers; *p; p++) {
+             if (*p == ',') total_q++;
+        }
+    }
+
     char response[64];
-    snprintf(response, sizeof(response), "ROOM_CREATED:%d,%d", room->id, room->quiz_duration);
+    snprintf(response, sizeof(response), "ROOM_CREATED:%d,%d,%d", room->id, room->quiz_duration, total_q);
     net_send_to_client(host_sock, response, strlen(response));
     ctx->room_count++;
     LOG_INFO("Room created successfully");
@@ -382,6 +425,20 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
     
     if (room->state != QUIZ_STATE_STARTED) {
         net_send_to_client(client_sock, "ERROR:Quiz not available yet", 28);
+        return -1;
+    }
+    
+    // Check start_time and end_time validity
+    time_t now_t = time(NULL);
+    if (room->start_time > 0 && now_t < room->start_time) {
+        char err[64];
+        snprintf(err, sizeof(err), "ERROR:Quiz starts at %ld", room->start_time);
+        net_send_to_client(client_sock, err, strlen(err));
+        return -1;
+    }
+    
+    if (room->end_time > 0 && now_t > room->end_time) {
+        net_send_to_client(client_sock, "ERROR:Quiz has ended", 20);
         return -1;
     }
     

@@ -294,14 +294,21 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
     }
 
     if (strcmp(type, "ROOM_CREATED") == 0) {
-        // Format: room_id,duration
-        int room_id = 0, duration = 300;
-        if (sscanf(data, "%d,%d", &room_id, &duration) >= 1) {
+        // Format: room_id,duration,total_questions
+        int room_id = 0, duration = 300, total_q = 0;
+        
+        // Try parsing with total_questions first
+        if (sscanf(data, "%d,%d,%d", &room_id, &duration, &total_q) >= 2) {
             ctx->current_room_id = room_id;
             ctx->quiz_duration = duration;
+            if (strchr(data, ',') && strchr(strchr(data, ',')+1, ',')) {
+                 ctx->total_questions = total_q;
+            } else {
+                 ctx->total_questions = 0; // Legacy
+            }
         }
         ctx->is_host = true;
-        ctx->room_state = QUIZ_STATE_WAITING;
+        ctx->room_state = QUIZ_STATE_STARTED; // Auto-started (Time based)
         snprintf(ctx->status_message, sizeof(ctx->status_message),
             "Room %d created! You are the host.", ctx->current_room_id);
         ctx->current_state = PAGE_HOST_PANEL;
@@ -395,7 +402,7 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         set_status_with_data(ctx, "New participant: ", data);
     }
     else if (strcmp(type, "PARTICIPANT_STARTED") == 0) {
-        const char* d = data ? data : "";
+        const char* d = data;
         size_t suffix_len = strlen(" started the quiz");
         size_t max_name = sizeof(ctx->status_message) - 1;
         if (suffix_len < max_name) {
@@ -535,6 +542,50 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         ctx->current_state = PAGE_QUIZ;
         snprintf(ctx->status_message, sizeof(ctx->status_message),
             "Quiz started! %d questions loaded.", ctx->question_count);
+    }
+    else if (strcmp(type, "QUESTION_FILES") == 0) {
+        // Format: QUESTION_FILES:file1.csv|E,M,H,T;file2.csv|E,M,H,T...
+        strncpy(ctx->available_files, data, sizeof(ctx->available_files) - 1);
+        ctx->available_files[sizeof(ctx->available_files) - 1] = '\0';
+        
+        // Parse into list
+        ctx->available_files_count = 0;
+        char buf[4096];
+        strncpy(buf, data, sizeof(buf)-1);
+        buf[sizeof(buf)-1] = '\0';
+        
+        char* tokenizer = buf;
+        char* token = strtok(tokenizer, ";");
+        while (token && ctx->available_files_count < 50) {
+            // token: "name|e,m,h,t"
+            char* pipe = strchr(token, '|');
+            if (pipe) {
+                *pipe = '\0';
+                char* stats = pipe + 1;
+                // Parse Name
+                strncpy(ctx->available_files_list[ctx->available_files_count].name, token, 127);
+                ctx->available_files_list[ctx->available_files_count].name[127] = '\0';
+                
+                // Parse Stats
+                int e=0, m=0, h=0, t=0;
+                sscanf(stats, "%d,%d,%d,%d", &e, &m, &h, &t);
+                ctx->available_files_list[ctx->available_files_count].easy_cnt = e;
+                ctx->available_files_list[ctx->available_files_count].med_cnt = m;
+                ctx->available_files_list[ctx->available_files_count].hard_cnt = h;
+                ctx->available_files_list[ctx->available_files_count].total_cnt = t;
+                
+                ctx->available_files_count++;
+            } else {
+                // Legacy support (just name)
+                 strncpy(ctx->available_files_list[ctx->available_files_count].name, token, 127);
+                 ctx->available_files_list[ctx->available_files_count].name[127] = '\0';
+                 ctx->available_files_list[ctx->available_files_count].total_cnt = 0; // Unknown
+                 ctx->available_files_count++;
+            }
+            token = strtok(NULL, ";");
+        }
+        
+        ctx->files_refreshed = true;
     }
 }
 

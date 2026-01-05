@@ -394,8 +394,18 @@ void server_run(ServerContext* ctx) {
     LOG_INFO("Server started");
 
     struct epoll_event events[MAX_CLIENTS];
+    time_t last_save_time = time(NULL);
+
     while (ctx->running) {
-        int event_count = epoll_wait(ctx->epoll_fd, events, MAX_CLIENTS, -1);
+        // Autosave every 10 seconds
+        time_t now = time(NULL);
+        if (now - last_save_time >= 10) {
+            storage_save_server_state(ctx);
+            last_save_time = now;
+            // LOG_INFO("Autosaved server state"); // constant logging might be spammy, maybe only on error?
+        }
+
+        int event_count = epoll_wait(ctx->epoll_fd, events, MAX_CLIENTS, 1000); // 1s timeout
         for (int i = 0; i < event_count; i++) {
             int fd = events[i].data.fd;
             if (fd == ctx->server_fd) {

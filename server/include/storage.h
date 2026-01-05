@@ -23,4 +23,10 @@ int storage_get_question_files(char* buffer, int max_len);
 int storage_save_csv_bank(const char* filename, const char* csv_data);
 
 
+
+// Save complete server state (rooms, clients, progress)
+int storage_save_server_state(const ServerContext* ctx);
+// Load complete server state
+int storage_load_server_state(ServerContext* ctx);
+
 #endif // STORAGE_H

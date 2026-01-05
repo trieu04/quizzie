@@ -1,4 +1,6 @@
+#include "../include/server.h"
 #include "../include/storage.h"
+
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -793,6 +795,9 @@ int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_
         
         char* fields[8] = {0};
         int nf = parse_csv_fields(line, fields, 8);
+
+// --- Server State Persistence ---
+
         if (nf < 7) { free_fields(fields, nf); continue; }
         
         StorageQRow qr;
@@ -883,4 +888,208 @@ int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_
     }
     
     return out_count > 0 ? 0 : -1;
+}
+
+// --- Server State Persistence ---
+
+int storage_save_server_state(const ServerContext* ctx) {
+    if (!ctx) return -1;
+
+    FILE* file = fopen("data/server_state.save", "w");
+    if (!file) {
+        LOG_ERROR("Failed to open server_state.save for writing");
+        return -1;
+    }
+
+    // Header: NEXT_ROOM_ID
+    fprintf(file, "NEXT_ROOM_ID:%d\n", ctx->next_room_id);
+
+    // Save Rooms
+    for (int i = 0; i < ctx->room_count; i++) {
+        const Room* r = &ctx->rooms[i];
+        
+        // Escape newlines in questions (simple approach: replace \n with [NL])
+        // We need a buffer copy for this
+        char* escaped_questions = (char*)malloc(strlen(r->questions) * 2 + 1); // rough estimate
+        if (escaped_questions) {
+            const char* src = r->questions;
+            char* dst = escaped_questions;
+            while (*src) {
+                if (*src == '\n') {
+                    strcpy(dst, "[NL]");
+                    dst += 4;
+                } else {
+                    *dst++ = *src;
+                }
+                src++;
+            }
+            *dst = '\0';
+        } else {
+             escaped_questions = strdup(""); 
+        }
+
+        fprintf(file, "ROOM:%d,%s,%d,%d,%ld,%ld,%d,%d,%s,%s\n",
+                r->id,
+                r->host_username,
+                r->quiz_duration,
+                r->state,
+                (long)r->start_time,
+                (long)r->end_time,
+                r->randomize_answers ? 1 : 0,
+                r->client_count,
+                r->question_file,
+                r->correct_answers); 
+
+        // Write questions on a separate line prefixed
+        fprintf(file, "ROOM_QUESTIONS:%d:%s\n", r->id, escaped_questions);
+        free(escaped_questions);
+
+        // Save Participants in this room
+        for (int j = 0; j < r->client_count; j++) {
+            const Client* c = r->clients[j];
+            if (c) {
+                fprintf(file, "PARTICIPANT:%d,%s,%d,%ld,%d,%d,%d,%d,%d,%s\n",
+                        r->id,
+                        c->username,
+                        c->role,
+                        (long)c->quiz_start_time,
+                        c->is_taking_quiz,
+                        c->has_submitted,
+                        c->score,
+                        c->total,
+                        c->current_question,
+                        c->answers); 
+            }
+        }
+    }
+
+    fclose(file);
+    return 0;
+}
+
+int storage_load_server_state(ServerContext* ctx) {
+    if (!ctx) return -1;
+
+    FILE* file = fopen("data/server_state.save", "r");
+    if (!file) {
+        LOG_INFO("No server state file found (clean start)");
+        return 0; // Not an error, just clean start
+    }
+
+    char line[BUFFER_SIZE * 3]; // Large buffer for questions
+    
+    // Clear existing context logic just in case, but usually called on fresh init
+    ctx->room_count = 0;
+    ctx->client_count = 0; // We don't restore connected clients, only room logic state
+
+    while (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\n\r")] = 0;
+        if (strlen(line) == 0) continue;
+
+        if (strncmp(line, "NEXT_ROOM_ID:", 13) == 0) {
+            sscanf(line + 13, "%d", &ctx->next_room_id);
+        }
+        else if (strncmp(line, "ROOM:", 5) == 0) {
+            if (ctx->room_count >= MAX_ROOMS) continue;
+            Room* r = &ctx->rooms[ctx->room_count];
+            memset(r, 0, sizeof(Room));
+            
+            int rand_ans = 0;
+            
+            // Allow sloppy parsing:
+            sscanf(line + 5, "%d,%49[^,],%d,%d,%ld,%ld,%d,%d,%127[^,],%49s",
+                   &r->id,
+                   r->host_username,
+                   &r->quiz_duration,
+                   (int*)&r->state,
+                   (long*)&r->start_time,
+                   (long*)&r->end_time,
+                   &rand_ans,
+                   &r->client_count,
+                   r->question_file,
+                   r->correct_answers);
+            
+            r->randomize_answers = rand_ans;
+            r->host_sock = -1; // disconnected
+            r->client_count = 0; // We will increment as we load participants
+            
+            ctx->room_count++;
+        }
+        else if (strncmp(line, "ROOM_QUESTIONS:", 15) == 0) {
+             // ROOM_QUESTIONS:id:content
+             int rid = 0;
+             char* content = strchr(line + 15, ':');
+             if (content) {
+                 *content = '\0';
+                 rid = atoi(line + 15);
+                 content++; // start of text
+                 
+                 // Find the room
+                 for(int i=0; i<ctx->room_count; i++) {
+                     if (ctx->rooms[i].id == rid) {
+                         // Unescape [NL] -> \n
+                         char* src = content;
+                         char* dst = ctx->rooms[i].questions;
+                         while(*src) {
+                            if (strncmp(src, "[NL]", 4) == 0) {
+                                *dst++ = '\n';
+                                src += 4;
+                            } else {
+                                *dst++ = *src++;
+                            }
+                         }
+                         *dst = '\0';
+                         break;
+                     }
+                 }
+             }
+        }
+        else if (strncmp(line, "PARTICIPANT:", 12) == 0) {
+            // PARTICIPANT:roomid,user,role,start,taking,submitted,score,total,curr,answers
+            int rid=0, role=0, taking=0, sub=0, sc=0, tot=0, cur=0;
+            long start=0;
+            char user[50], ans[50];
+            strcpy(ans, ""); // default empty
+            
+            int parsed = sscanf(line + 12, "%d,%49[^,],%d,%ld,%d,%d,%d,%d,%d,%49s",
+                   &rid, user, &role, &start, &taking, &sub, &sc, &tot, &cur, ans);
+
+            if (parsed >= 9) { // answers can be empty/missing
+               for(int i=0; i<ctx->room_count; i++) {
+                   if (ctx->rooms[i].id == rid) {
+                       Room* r = &ctx->rooms[i];
+                       if (r->client_count < MAX_CLIENTS && ctx->client_count < MAX_CLIENTS) {
+                           
+                           Client* c = &ctx->clients[ctx->client_count];
+                           memset(c, 0, sizeof(Client));
+                           c->sock = -1; // disconnected
+                           strncpy(c->username, user, sizeof(c->username)-1);
+                           c->role = role;
+                           c->quiz_start_time = (time_t)start;
+                           c->is_taking_quiz = taking;
+                           c->has_submitted = sub;
+                           c->score = sc;
+                           c->total = tot;
+                           c->current_question = cur;
+                           strncpy(c->answers, ans, sizeof(c->answers)-1);
+                           
+                           // Add to room
+                           r->clients[r->client_count] = c;
+                           r->client_count++;
+                           
+                           ctx->client_count++;
+                       }
+                       break;
+                   }
+               }
+            }
+        }
+    }
+
+    fclose(file);
+    LOG_INFO("Server state loaded successfully");
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Restored %d rooms", ctx->room_count);
+    LOG_INFO(msg);
+    return 0;
 }

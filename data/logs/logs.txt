@@ -120,3 +120,29 @@
 [2026-01-05 22:59:28] LOGIN_SUCCESS user=tkadmin role=admin
 [2026-01-05 22:59:33] CLIENT_CONNECT fd=7
 [2026-01-05 22:59:33] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 23:17:51] CLIENT_CONNECT fd=5
+[2026-01-05 23:17:51] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 23:18:24] ROOM_CREATED id=1 host=tkadmin duration=600
+[2026-01-05 23:18:39] QUIZ_START room_id=1 host=tkadmin clients=0 duration=600
+[2026-01-05 23:18:58] CLIENT_CONNECT fd=5
+[2026-01-05 23:18:58] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 23:19:03] ROOM_JOIN room_id=1 user=test1
+[2026-01-05 23:19:05] QUIZ_TAKE_START room_id=1 user=test1
+[2026-01-05 23:19:33] SUBMIT user=test1 room_id=1 score=0/15 time=28s
+[2026-01-05 23:19:52] QUIZ_TAKE_START room_id=1 user=test1
+[2026-01-05 23:21:31] CLIENT_CONNECT fd=5
+[2026-01-05 23:21:31] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 23:22:06] CLIENT_CONNECT fd=6
+[2026-01-05 23:22:06] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 23:22:20] ROOM_CREATED id=1 host=tkadmin duration=300
+[2026-01-05 23:22:34] QUIZ_START room_id=1 host=tkadmin clients=0 duration=300
+[2026-01-05 23:22:41] ROOM_JOIN room_id=1 user=test1
+[2026-01-05 23:24:30] CLIENT_CONNECT fd=5
+[2026-01-05 23:24:30] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 23:26:15] ROOM_DELETED id=1
+[2026-01-05 23:26:15] ROOM_CREATED id=2 host=tkadmin duration=300
+[2026-01-05 23:36:48] CLIENT_CONNECT fd=5
+[2026-01-05 23:36:48] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 23:39:57] ROOM_CREATED id=1 host=tkadmin duration=300
+[2026-01-05 23:40:04] ROOM_DELETED id=1
+[2026-01-05 23:40:10] ROOM_CREATED id=2 host=tkadmin duration=300

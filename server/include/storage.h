@@ -14,6 +14,13 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
                                      char* questions, char* answers);
 int storage_register_user(const char* username, const char* password);
 int storage_verify_login(const char* username, const char* password, int* out_role);
+// Load filtered questions for room creation (Easy/Med/Hard/Any, Randomize)
+int storage_load_filtered_questions(const char* filename, int easy, int med, int hard, int any, 
+                                    bool randomize_answers, char* questions, char* answers);
+// Get list of available CSV question files
+int storage_get_question_files(char* buffer, int max_len);
+
 int storage_save_csv_bank(const char* filename, const char* csv_data);
+
 
 #endif // STORAGE_H

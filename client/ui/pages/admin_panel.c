@@ -34,13 +34,9 @@ static void load_recent_logs(void) {
 static void on_create_room_clicked(GtkWidget *widget, gpointer data) {
 	(void)widget;
 	ClientContext* ctx = (ClientContext*)data;
-
-	char message[128];
-	snprintf(message, sizeof(message), "%s", ctx->username);
-	client_send_message(ctx, "CREATE_ROOM", message);
-
-	strcpy(ctx->status_message, "Creating room...");
-	if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+	
+	ctx->current_state = PAGE_CREATE_ROOM;
+	ui_navigate_to_page(PAGE_CREATE_ROOM);
 }
 
 static void on_view_rooms_clicked(GtkWidget *widget, gpointer data) {

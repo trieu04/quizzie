@@ -32,6 +32,9 @@ ClientContext* client_init() {
     strcpy(ctx->question_file, "questions.txt");
     memset(ctx->answers, 0, sizeof(ctx->answers));
     strcpy(ctx->status_message, "");
+    // Initialize server connection with defaults
+    strcpy(ctx->server_ip, "127.0.0.1");
+    ctx->server_port = 8080;
     return ctx;
 }
 

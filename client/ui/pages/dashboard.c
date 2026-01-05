@@ -44,18 +44,6 @@ static void on_reconnect_clicked(GtkWidget *widget, gpointer data) {
     }
 }
 
-static void on_logout_clicked(GtkWidget *widget, gpointer data) {
-    (void)widget;
-    ClientContext* ctx = (ClientContext*)data;
-    net_close(ctx);
-    ctx->username[0] = '\0';
-    ctx->current_room_id = -1;
-    ctx->last_room_id = -1;
-    ctx->status_message[0] = '\0';
-    ctx->current_state = PAGE_LOGIN;
-    ui_navigate_to_page(PAGE_LOGIN);
-}
-
 GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // Reset statics to avoid stale widget pointers when navigating back
     status_label = NULL;
@@ -85,15 +73,6 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // Connection status
     GtkWidget *conn_label = gtk_label_new(NULL);
     char conn_text[128];
-    if (ctx->connected) {
-        snprintf(conn_text, sizeof(conn_text), "<span size='small'>Connected to %s:%d</span>", SERVER_IP, SERVER_PORT);
-        gtk_style_context_add_class(gtk_widget_get_style_context(conn_label), "pill");
-        gtk_style_context_add_class(gtk_widget_get_style_context(conn_label), "pill-success");
-    } else {
-        snprintf(conn_text, sizeof(conn_text), "<span size='small'>Disconnected</span>");
-        gtk_style_context_add_class(gtk_widget_get_style_context(conn_label), "pill");
-        gtk_style_context_add_class(gtk_widget_get_style_context(conn_label), "pill-error");
-    }
     gtk_label_set_markup(GTK_LABEL(conn_label), conn_text);
     gtk_box_pack_start(GTK_BOX(header), conn_label, FALSE, FALSE, 5);
     
@@ -179,12 +158,7 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_container_add(GTK_CONTAINER(quiz_frame), quiz_box);
     gtk_box_pack_start(GTK_BOX(content), quiz_frame, FALSE, FALSE, 0);
     
-    // Logout button
-    GtkWidget *logout_btn = gtk_button_new_with_label("<< Logout");
-    gtk_widget_set_size_request(logout_btn, -1, 40);
-    g_signal_connect(logout_btn, "clicked", G_CALLBACK(on_logout_clicked), ctx);
-    gtk_style_context_add_class(gtk_widget_get_style_context(logout_btn), "btn-ghost");
-    gtk_box_pack_start(GTK_BOX(content), logout_btn, FALSE, FALSE, 5);
+
     
     gtk_box_pack_start(GTK_BOX(main_box), content, TRUE, TRUE, 0);
     

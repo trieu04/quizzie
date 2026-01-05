@@ -88,7 +88,7 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     room->client_count = 0;  // Host is not counted as participant
     room->state = QUIZ_STATE_WAITING;
     room->quiz_duration = 300;  // Default 5 minutes
-    strcpy(room->question_file, "exam_bank.csv");
+    strcpy(room->question_file, "exam_bank_programming.csv");
     
     // Parse config if provided: accepts formats
     //  - "duration,filename"
@@ -136,9 +136,10 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
     // Try multiple paths for questions file
     char filepath[256];
     const char* prefixes[] = {
-        "data/questions/",
+        "./data/questions/",
         "../data/questions/",
         "../../data/questions/",
+        "../../../data/questions/",
         "data/",
         "../data/",
         NULL

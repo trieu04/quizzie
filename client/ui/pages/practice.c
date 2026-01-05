@@ -5,6 +5,7 @@
 
 // UI component pointers
 static GtkWidget *status_label = NULL;
+static GtkWidget *status_frame = NULL;
 static GtkWidget *subject_combo = NULL;
 static GtkWidget *easy_spin = NULL;
 static GtkWidget *medium_spin = NULL;
@@ -65,6 +66,7 @@ static void on_start_practice(GtkWidget *widget, gpointer data) {
 
 GtkWidget* page_practice_create(ClientContext* ctx) {
     status_label = NULL;
+    status_frame = NULL;
     subject_combo = NULL;
     easy_spin = NULL;
     medium_spin = NULL;
@@ -95,7 +97,7 @@ GtkWidget* page_practice_create(ClientContext* ctx) {
     gtk_widget_set_margin_end(content, 30);
     gtk_widget_set_margin_bottom(content, 30);
 
-    GtkWidget *status_frame = gtk_frame_new(NULL);
+    status_frame = gtk_frame_new(NULL);
     gtk_frame_set_shadow_type(GTK_FRAME(status_frame), GTK_SHADOW_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(status_frame), "card");
     status_label = gtk_label_new(ctx->status_message);
@@ -107,6 +109,11 @@ GtkWidget* page_practice_create(ClientContext* ctx) {
     gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
     gtk_container_add(GTK_CONTAINER(status_frame), status_label);
     gtk_box_pack_start(GTK_BOX(content), status_frame, FALSE, FALSE, 0);
+    // Hide status frame if no message
+    if (strlen(ctx->status_message) == 0) {
+        gtk_widget_set_no_show_all(status_frame, TRUE);
+        gtk_widget_hide(status_frame);
+    }
 
     GtkWidget *card = gtk_frame_new(NULL);
     GtkWidget *card_header = gtk_label_new(NULL);
@@ -204,6 +211,15 @@ GtkWidget* page_practice_create(ClientContext* ctx) {
 }
 
 void page_practice_update(ClientContext* ctx) {
-    (void)ctx;
-    // Update logic here if needed
+    // Update status label with any server messages
+    if (status_label && ctx->status_message[0] != '\0') {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        if (status_frame) {
+            gtk_widget_set_no_show_all(status_frame, FALSE);
+            gtk_widget_show_all(status_frame);
+        }
+        // Don't clear the message here - let it persist until user takes action
+    } else if (status_frame && ctx->status_message[0] == '\0') {
+        gtk_widget_hide(status_frame);
+    }
 }

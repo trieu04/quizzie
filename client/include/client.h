@@ -10,6 +10,7 @@ struct ClientContext;
 
 typedef enum {
     PAGE_LOGIN,
+    PAGE_REGISTER,     // Register page
     PAGE_DASHBOARD,
     PAGE_PRACTICE,
     PAGE_ROOM_LIST,
@@ -61,6 +62,10 @@ typedef struct ClientContext {
     bool connected;
     AppState current_state;
     bool force_page_refresh;     // Force page navigation even if state unchanged
+    
+    // Server connection
+    char server_ip[64];          // Server IP or domain
+    int server_port;             // Server port
     
     // User state
     char username[32];

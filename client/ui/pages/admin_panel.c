@@ -63,15 +63,7 @@ static void on_refresh_logs_clicked(GtkWidget *widget, gpointer data) {
 	load_recent_logs();
 }
 
-static void on_logout_clicked(GtkWidget *widget, gpointer data) {
-	(void)widget;
-	ClientContext* ctx = (ClientContext*)data;
 
-	ctx->current_state = PAGE_LOGIN;
-	ctx->force_page_refresh = true;
-	ctx->role = 0;
-	strcpy(ctx->username, "");
-}
 
 GtkWidget* create_admin_panel_page(ClientContext* ctx) {
 	GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -186,11 +178,7 @@ GtkWidget* create_admin_panel_page(ClientContext* ctx) {
 	gtk_container_add(GTK_CONTAINER(logs_frame), logs_box);
 	gtk_box_pack_start(GTK_BOX(content), logs_frame, TRUE, TRUE, 0);
 
-	GtkWidget *logout_button = gtk_button_new_with_label("<< Logout");
-	gtk_widget_set_size_request(logout_button, -1, 40);
-	g_signal_connect(logout_button, "clicked", G_CALLBACK(on_logout_clicked), ctx);
-	gtk_style_context_add_class(gtk_widget_get_style_context(logout_button), "btn-ghost");
-	gtk_box_pack_start(GTK_BOX(content), logout_button, FALSE, FALSE, 5);
+
 
 	gtk_box_pack_start(GTK_BOX(main_box), content, TRUE, TRUE, 0);
 

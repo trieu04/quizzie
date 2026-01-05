@@ -293,13 +293,26 @@ static void handle_load_practice_questions(ServerContext* ctx, int fd, const cha
     // Parse subject,easy,medium,hard
     int parsed = sscanf(data, "%31[^,],%d,%d,%d", subject, &easy_req, &med_req, &hard_req);
     if (parsed < 4) {
-        net_send_to_client(fd, "ERROR:Invalid practice request", 31);
+        net_send_to_client(fd, "ERROR:Invalid practice request format", 38);
+        return;
+    }
+    
+    // Validate individual counts
+    if (easy_req < 0 || med_req < 0 || hard_req < 0) {
+        net_send_to_client(fd, "ERROR:Question counts cannot be negative", 40);
         return;
     }
     
     int total_req = easy_req + med_req + hard_req;
-    if (total_req <= 0 || total_req > 20) {
-        net_send_to_client(fd, "ERROR:Invalid question counts", 29);
+    if (total_req <= 0) {
+        net_send_to_client(fd, "ERROR:Must request at least 1 question", 39);
+        return;
+    }
+    
+    if (total_req > MAX_QUESTIONS) {
+        char err_msg[64];
+        snprintf(err_msg, sizeof(err_msg), "ERROR:Maximum %d questions allowed (requested %d)", MAX_QUESTIONS, total_req);
+        net_send_to_client(fd, err_msg, strlen(err_msg));
         return;
     }
     
@@ -311,7 +324,9 @@ static void handle_load_practice_questions(ServerContext* ctx, int fd, const cha
     char answers[MAX_QUESTIONS + 1];
     
     if (storage_load_practice_questions(filename, easy_req, med_req, hard_req, questions, answers) != 0) {
-        net_send_to_client(fd, "ERROR:Failed to load practice questions", 40);
+        char err_msg[128];
+        snprintf(err_msg, sizeof(err_msg), "ERROR:Failed to load practice questions for subject '%s'", subject);
+        net_send_to_client(fd, err_msg, strlen(err_msg));
         return;
     }
     

@@ -178,6 +178,13 @@ void net_close_client(ServerContext* ctx, int sock) {
     }
     
     if (found_idx >= 0) {
+        // Cleanup upload buffer if active
+        if (ctx->upload_buffers[found_idx].active && ctx->upload_buffers[found_idx].data) {
+            free(ctx->upload_buffers[found_idx].data);
+            ctx->upload_buffers[found_idx].data = NULL;
+            ctx->upload_buffers[found_idx].active = false;
+        }
+        
         // Remove from all rooms
         for (int r = 0; r < ctx->room_count; r++) {
             Room* room = &ctx->rooms[r];
@@ -196,6 +203,8 @@ void net_close_client(ServerContext* ctx, int sock) {
         // Shift remaining clients in main array
         for (int i = found_idx; i < ctx->client_count - 1; i++) {
             ctx->clients[i] = ctx->clients[i+1];
+            // Also shift upload buffers
+            ctx->upload_buffers[i] = ctx->upload_buffers[i+1];
         }
         ctx->client_count--;
         printf("[TCP] Client removed from array (remaining: %d)\n", ctx->client_count);

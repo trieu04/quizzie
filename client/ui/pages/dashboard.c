@@ -44,6 +44,13 @@ static void on_reconnect_clicked(GtkWidget *widget, gpointer data) {
     }
 }
 
+static void on_view_history_clicked(GtkWidget *widget, gpointer data) {
+    (void)widget;
+    ClientContext* ctx = (ClientContext*)data;
+    ctx->current_state = PAGE_HISTORY;
+    ui_navigate_to_page(PAGE_HISTORY);
+}
+
 GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // Reset statics to avoid stale widget pointers when navigating back
     status_label = NULL;
@@ -157,6 +164,34 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     
     gtk_container_add(GTK_CONTAINER(quiz_frame), quiz_box);
     gtk_box_pack_start(GTK_BOX(content), quiz_frame, FALSE, FALSE, 0);
+    
+    // History Section
+    GtkWidget *history_frame = gtk_frame_new(NULL);
+    GtkWidget *history_header = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(history_header), "<b>[📊] Test History</b>");
+    gtk_frame_set_label_widget(GTK_FRAME(history_frame), history_header);
+    gtk_frame_set_shadow_type(GTK_FRAME(history_frame), GTK_SHADOW_NONE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(history_frame), "card");
+    
+    GtkWidget *history_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_margin_start(history_box, 15);
+    gtk_widget_set_margin_end(history_box, 15);
+    gtk_widget_set_margin_top(history_box, 15);
+    gtk_widget_set_margin_bottom(history_box, 15);
+    
+    GtkWidget *history_text = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(history_text), "View your test results history.");
+    gtk_label_set_line_wrap(GTK_LABEL(history_text), TRUE);
+    gtk_box_pack_start(GTK_BOX(history_box), history_text, FALSE, FALSE, 0);
+    
+    GtkWidget *history_btn = gtk_button_new_with_label("View History");
+    gtk_widget_set_size_request(history_btn, -1, 45);
+    g_signal_connect(history_btn, "clicked", G_CALLBACK(on_view_history_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(history_btn), "btn-secondary");
+    gtk_box_pack_start(GTK_BOX(history_box), history_btn, FALSE, FALSE, 0);
+    
+    gtk_container_add(GTK_CONTAINER(history_frame), history_box);
+    gtk_box_pack_start(GTK_BOX(content), history_frame, FALSE, FALSE, 0);
     
 
     

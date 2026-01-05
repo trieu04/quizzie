@@ -308,3 +308,9 @@
 .mt-16 {
     margin-top: 16px;
 }
+
+/* Monospace text for CSV preview */
+.monospace {
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 10px;
+}

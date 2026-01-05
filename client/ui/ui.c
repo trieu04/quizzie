@@ -187,6 +187,9 @@ static gboolean update_server_messages(gpointer data) {
                 case PAGE_CREATE_ROOM:
                     page_create_room_update(ctx);
                     break;
+                case PAGE_HISTORY:
+                    page_history_update(ctx);
+                    break;
             }
         }
         }
@@ -298,6 +301,9 @@ void ui_navigate_to_page(AppState state) {
             break;
         case PAGE_CREATE_ROOM:
             new_page = page_create_room_create(ctx);
+            break;
+        case PAGE_HISTORY:
+            new_page = page_history_create(ctx);
             break;
     }
     

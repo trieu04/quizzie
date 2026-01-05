@@ -1,15 +1,91 @@
 id,question,A,B,C,D,answer,difficulty
-301,Kiểu dữ liệu trong C để lưu số nguyên?,float,int,double,char,B,easy
-302,Từ khóa định nghĩa hằng trong C?,const,define,static,volatile,A,medium
-303,Phương thức nhập xuất trong Java?,Scanner,InputStream,Console,All of the above,D,medium
-304,Từ khóa tạo hàm ẩn danh trong JavaScript?,lambda,fn,function,def,C,easy
-305,Cấu trúc dữ liệu hàng đợi là?,FIFO,LIFO,BFS,DFS,A,medium
-306,Thuật toán tìm kiếm nhị phân độ phức tạp?,O(n),O(log n),O(n log n),O(1),B,medium
-307,Từ khóa để kế thừa lớp trong Java?,inherits,extends,implements,super,B,medium
-308,Phép so sánh nghiêm ngặt trong JavaScript?,==,===,!===,=:=,B,medium
-309,Khai báo interface trong C# dùng từ khóa?,interface,trait,proto,iface,A,easy
-310,Phương thức thêm phần tử vào ArrayList trong Java?,add(),push(),insert(),append(),A,easy
-311,Thư viện test mặc định trong Python?,unittest,pytest,nose,doctest,A,medium
-312,Kiểu dữ liệu ánh xạ trong Go?,map,set,dict,hash,map,A,medium
-313,Câu lệnh kết thúc vòng lặp sớm trong C?,break,stop,exit,halt,A,easy
-314,Thiết kế SOLID chữ L là?,Liskov Substitution,Limited Scope,Loose Coupling,Layered,Architecture,A,hard
+1,Python là ngôn ngữ?,Biên dịch,Thông dịch,Lắp ráp,Markup,B,easy
+2,Java chạy trên?,JVM,CLR,Native,Web,A,easy
+3,Lệnh git để sao chép repo?,git copy,git clone,git pull,git init,B,easy
+4,HTML viết tắt của?,HyperText Markup Language,Hyperlink Text Markup,Hyper Transfer Markup,Hyper Terminal Markup,A,easy
+5,Toán tử so sánh bằng trong Python?,=,==,===,!=,B,easy
+6,Khai báo biến trong C dùng từ khóa?,var,let,int,define,C,easy
+7,Cấu trúc rẽ nhánh trong C?,for,while,if,switch,C,easy
+8,CSS dùng để?,Xử lý logic,Tạo cấu trúc,Trang trí giao diện,Lưu dữ liệu,C,easy
+9,JavaScript chạy ở đâu?,Server,Trình duyệt,Compiler,Database,B,easy
+10,Kiểu dữ liệu số nguyên trong Java?,float,double,int,char,C,easy
+11,Lệnh in ra màn hình trong Python?,print(),echo(),write(),cout,B,easy
+12,Mảng trong C bắt đầu từ chỉ số?,0,1,-1,2,A,easy
+13,Git dùng để?,Soạn thảo code,Quản lý phiên bản,Thiết kế UI,Test,B,easy
+14,Toán tử logic AND trong C?,&&,||,&,and,A,easy
+15,File header C++ có đuôi?,.cp,.h,.cpp,.hpp,B,easy
+16,Framework backend Java?,React,Angular,Spring,Django,C,easy
+17,Ký hiệu comment 1 dòng trong Python?,//,#,/* */,--,B,easy
+18,IDE phổ biến cho Java?,VS Code,Eclipse,Notepad,Word,B,easy
+19,SQL dùng để?,Thiết kế UI,Quản lý CSDL,Viết API,Test,B,easy
+20,Hàm main trong C trả về?,void,int,float,double,B,easy
+21,Toán tử tăng 1 trong C?,++,--,+=,=+,A,easy
+22,JavaScript là ngôn ngữ?,Biên dịch,Thông dịch,Cấp thấp,Assembly,B,easy
+23,Lệnh tạo branch git?,git new,git branch,git fork,git checkout,B,easy
+24,HTML thẻ xuống dòng?,<br>,<p>,<hr>,<div>,A,easy
+25,C++ hỗ trợ lập trình?,Hàm,Thủ tục,Hướng đối tượng,Cả A và C,D,easy
+26,Python list dùng để?,Lưu key-value,Lưu tập hợp có thứ tự,Lưu hằng số,Lưu file,B,easy
+27,Câu lệnh lặp xác định số lần?,while,do-while,for,loop,C,easy
+28,JS file có đuôi?,.java,.js,.jsx,.ts,B,easy
+29,Toán tử OR trong Python?,||,or,|,OR,B,easy
+30,Ngôn ngữ nào strongly typed?,Python,Java,PHP,JS,B,easy
+31,C dùng để phát triển?,Web,Mobile,System,AI,C,easy
+32,Lệnh kết thúc chương trình C?,exit,return 0,stop,break,B,easy
+33,SQL lệnh lấy dữ liệu?,INSERT,DELETE,UPDATE,SELECT,D,easy
+34,C++ stream output?,cin,cout,print,echo,B,easy
+35,Python dictionary lưu?,Danh sách,Cặp key-value,Mảng 2 chiều,Tuple,B,easy
+36,Java package dùng để?,Nén file,Nhóm class,Chạy JVM,Compile,B,easy
+37,HTML thẻ tạo link?,<a>,<link>,<href>,<url>,A,easy
+38,CSS thuộc tính màu chữ?,font,color,text-color,foreground,B,easy
+39,Git kiểm tra trạng thái?,git log,git check,git status,git info,C,easy
+40,Python tuple có thể thay đổi?,Có,Không,Tùy phiên bản,Tùy IDE,B,easy
+41,Khác nhau giữa == và === trong JS?,Kiểu dữ liệu,Giá trị,Cả 2,Không khác,C,medium
+42,OOP có bao nhiêu tính chất chính?,2,3,4,5,C,medium
+43,Stack hoạt động theo?,FIFO,LIFO,Random,Priority,B,medium
+44,Queue khác Stack ở?,Thứ tự truy xuất,Bộ nhớ,Tốc độ,Kích thước,A,medium
+45,Overloading là?,Ghi đè hàm,Nạp chồng hàm,Ẩn hàm,Xóa hàm,B,medium
+46,Con trỏ trong C lưu?,Giá trị,Địa chỉ,Kiểu dữ liệu,File,B,medium
+47,Thời gian chạy thuật toán O(n²)?,Bậc hai,Tuyến tính,Log,Constant,A,medium
+48,SQL khóa chính?,FOREIGN KEY,PRIMARY KEY,UNIQUE,INDEX,B,medium
+49,Abstract class khác interface?,Có biến instance,Không có method,Có constructor,Không kế thừa,C,medium
+50,Python pass dùng để?,Dừng chương trình,Bỏ qua khối lệnh,Thoát hàm,In ra,B,medium
+51,HTTP GET khác POST?,Bảo mật,Dữ liệu gửi đi,Caching,Cả A và B,D,medium
+52,Try-catch dùng để?,Xử lý lỗi,Lặp,Điều kiện,Đa luồng,A,medium
+53,Git merge dùng để?,Tạo nhánh,Gộp nhánh,Xóa nhánh,Đổi tên,B,medium
+54,Deadlock xảy ra khi?,Thiếu RAM,Xung đột tài nguyên,Lỗi cú pháp,Timeout,B,medium
+55,Python global dùng để?,Biến toàn cục,Import module,Định nghĩa hàm,Khai báo class,A,medium
+56,Constructor được gọi khi?,Kết thúc object,Tạo object,Gọi hàm static,Compile,B,medium
+57,Java garbage collection dùng để?,Tối ưu CPU,Dọn bộ nhớ,Tăng tốc IO,Bảo mật,B,medium
+58,Normalization trong DB?,Giảm dư thừa,Tăng dữ liệu,Mã hóa,Nén,A,medium
+59,Linked list khác array?,Kích thước động,Truy cập nhanh,Ít bộ nhớ,Không pointer,A,medium
+60,REST API dùng?,XML,JSON,HTML,Cả A và B,D,medium
+61,Thread là?,Tiến trình,Luồng nhẹ,Chương trình,CPU,B,medium
+62,Python lambda là?,Hàm ẩn danh,Hàm đệ quy,Class,Hàm generator,A,medium
+63,Inheritance là?,Đóng gói,Kế thừa,Đa hình,Trừu tượng,B,medium
+64,Time complexity của binary search?,O(n),O(log n),O(n²),O(1),B,medium
+65,SQL JOIN dùng để?,Gộp bảng,Xóa bảng,Tạo bảng,Index,A,medium
+66,Exception unchecked là?,Runtime,Compile,Logic,System,A,medium
+67,Virtual function dùng?,Overloading,Override,Dynamic binding,Static binding,C,medium
+68,Hash table ưu điểm?,Tìm nhanh,Sắp xếp,Duyệt tuần tự,Ít RAM,A,medium
+69,API stateless nghĩa là?,Không lưu session,Lưu cache,Bảo mật cao,Chậm,A,medium
+70,Python generator dùng yield để?,Trả nhiều giá trị,Dừng loop,Thoát hàm,In ra,A,medium
+71,Big-O của quicksort trung bình?,O(n²),O(n log n),O(log n),O(n),B,hard
+72,Race condition xảy ra khi?,1 thread,Nhiều thread truy cập chung,Lỗi IO,Deadlock,B,hard
+73,SQL ACID chữ C là?,Consistency,Concurrency,Correctness,Control,A,hard
+74,Virtual memory dùng để?,Tăng RAM ảo,Giảm CPU,Tăng IO,Bảo mật,A,hard
+75,Polymorphism đạt được bằng?,Overloading,Override,Cả A và B,Không có,C,hard
+76,Heap khác stack?,Cấp phát động,Tốc độ,Bộ nhớ tĩnh,Compile,A,hard
+77,DFS dùng cấu trúc?,Queue,Stack,Heap,Tree,B,hard
+78,Index DB giúp?,Tăng truy vấn,Tăng lưu trữ,Bảo mật,Khóa,A,hard
+79,Mutex dùng để?,Đồng bộ,Bộ nhớ,IO,Network,A,hard
+80,Dependency Injection giúp?,Giảm coupling,Tăng code,Tăng bug,Giảm test,A,hard
+81,REST PUT khác PATCH?,Toàn phần,Một phần,Method,Caching,A,hard
+82,Garbage collector mark-sweep?,Đánh dấu & thu gom,Nén,Tối ưu CPU,Swap,A,hard
+83,Normalization mức 3NF?,Loại bỏ phụ thuộc bắc cầu,Khóa chính,Index,Trigger,A,hard
+84,Time complexity worst của merge sort?,O(n²),O(n log n),O(log n),O(n),B,hard
+85,Thread pool dùng để?,Giảm tạo thread,Tăng RAM,Deadlock,Bottleneck,A,hard
+86,SQL HAVING khác WHERE?,Lọc sau group,Lọc trước group,Join,Index,A,hard
+87,Cache invalidation là?,Xóa cache cũ,Tạo cache mới,Backup,Sync,A,hard
+88,Lock-free programming tránh?,Mutex,Deadlock,Race condition,Cả A và B,D,hard
+89,Memory leak là?,Rò rỉ RAM,Lỗi CPU,Lỗi IO,Lỗi logic,A,hard
+90,Distributed system CAP chọn tối đa?,1,2,3,4,B,hard

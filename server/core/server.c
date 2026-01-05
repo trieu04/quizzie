@@ -16,6 +16,17 @@ ServerContext* server_init() {
     ctx->room_count = 0;
     ctx->next_room_id = 1;
     ctx->running = true;
+    
+    // Initialize upload buffers
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        ctx->upload_buffers[i].active = false;
+        ctx->upload_buffers[i].data = NULL;
+        ctx->upload_buffers[i].current_size = 0;
+        ctx->upload_buffers[i].capacity = 0;
+        ctx->upload_buffers[i].total_chunks = 0;
+        ctx->upload_buffers[i].received_chunks = 0;
+    }
+    
     return ctx;
 }
 
@@ -127,6 +138,156 @@ static void handle_upload_questions(ServerContext* ctx, int fd, const char* data
         }
     } else {
         net_send_to_client(fd, "UPLOAD_FAILED:Invalid format", 29);
+    }
+}
+
+static void handle_upload_start(ServerContext* ctx, int fd, const char* data) {
+    if (!client_is_admin(ctx, fd)) {
+        net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
+        return;
+    }
+
+    char filename[128] = "";
+    int total_chunks = 0;
+    char* comma = strchr(data, ',');
+    if (comma) {
+        size_t flen = comma - data;
+        if (flen > 127) flen = 127;
+        strncpy(filename, data, flen);
+        filename[flen] = '\0';
+        total_chunks = atoi(comma + 1);
+
+        // Find client index
+        int client_idx = -1;
+        for (int i = 0; i < ctx->client_count; i++) {
+            if (ctx->clients[i].sock == fd) {
+                client_idx = i;
+                break;
+            }
+        }
+
+        if (client_idx >= 0) {
+            UploadBuffer* buf = &ctx->upload_buffers[client_idx];
+            
+            // Free old buffer if exists
+            if (buf->active && buf->data) {
+                free(buf->data);
+            }
+
+            // Initialize new buffer
+            buf->capacity = total_chunks * 1000; // Estimate
+            buf->data = (char*)malloc(buf->capacity);
+            if (buf->data) {
+                buf->data[0] = '\0';
+                strncpy(buf->filename, filename, sizeof(buf->filename) - 1);
+                buf->filename[sizeof(buf->filename) - 1] = '\0';
+                buf->current_size = 0;
+                buf->total_chunks = total_chunks;
+                buf->received_chunks = 0;
+                buf->active = true;
+                net_send_to_client(fd, "UPLOAD_READY:Ready to receive chunks", 37);
+            } else {
+                net_send_to_client(fd, "UPLOAD_FAILED:Memory allocation failed", 39);
+            }
+        }
+    } else {
+        net_send_to_client(fd, "UPLOAD_FAILED:Invalid format", 29);
+    }
+}
+
+static void handle_upload_chunk(ServerContext* ctx, int fd, const char* data) {
+    if (!client_is_admin(ctx, fd)) {
+        return;
+    }
+
+    int chunk_num = 0;
+    char* comma = strchr(data, ',');
+    if (comma) {
+        chunk_num = atoi(data);
+        const char* chunk_data = comma + 1;
+
+        // Find client index
+        int client_idx = -1;
+        for (int i = 0; i < ctx->client_count; i++) {
+            if (ctx->clients[i].sock == fd) {
+                client_idx = i;
+                break;
+            }
+        }
+
+        if (client_idx >= 0) {
+            UploadBuffer* buf = &ctx->upload_buffers[client_idx];
+            if (buf->active && buf->data) {
+                size_t chunk_len = strlen(chunk_data);
+                size_t new_size = buf->current_size + chunk_len;
+
+                // Resize if needed
+                if (new_size >= buf->capacity) {
+                    size_t new_capacity = buf->capacity * 2;
+                    char* new_data = (char*)realloc(buf->data, new_capacity);
+                    if (new_data) {
+                        buf->data = new_data;
+                        buf->capacity = new_capacity;
+                    } else {
+                        net_send_to_client(fd, "UPLOAD_FAILED:Memory reallocation failed", 41);
+                        return;
+                    }
+                }
+
+                // Append chunk
+                strncat(buf->data, chunk_data, chunk_len);
+                buf->current_size = new_size;
+                buf->received_chunks++;
+            }
+        }
+    }
+}
+
+static void handle_upload_end(ServerContext* ctx, int fd, const char* data) {
+    if (!client_is_admin(ctx, fd)) {
+        net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
+        return;
+    }
+
+    // Find client index
+    int client_idx = -1;
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].sock == fd) {
+            client_idx = i;
+            break;
+        }
+    }
+
+    if (client_idx >= 0) {
+        UploadBuffer* buf = &ctx->upload_buffers[client_idx];
+        if (buf->active && buf->data) {
+            // Verify all chunks received
+            if (buf->received_chunks == buf->total_chunks) {
+                // Save to file
+                if (storage_save_csv_bank(buf->filename, buf->data) == 0) {
+                    char success_msg[256];
+                    snprintf(success_msg, sizeof(success_msg), 
+                            "UPLOAD_SUCCESS:CSV saved (%d chunks, %zu bytes)", 
+                            buf->received_chunks, buf->current_size);
+                    net_send_to_client(fd, success_msg, strlen(success_msg));
+                } else {
+                    net_send_to_client(fd, "UPLOAD_FAILED:Failed to save file", 34);
+                }
+            } else {
+                char error_msg[256];
+                snprintf(error_msg, sizeof(error_msg), 
+                        "UPLOAD_FAILED:Missing chunks (%d/%d)", 
+                        buf->received_chunks, buf->total_chunks);
+                net_send_to_client(fd, error_msg, strlen(error_msg));
+            }
+
+            // Cleanup buffer
+            free(buf->data);
+            buf->data = NULL;
+            buf->active = false;
+        } else {
+            net_send_to_client(fd, "UPLOAD_FAILED:No active upload", 31);
+        }
     }
 }
 
@@ -343,6 +504,12 @@ static void dispatch_message(ServerContext* ctx, int fd, const Message* msg) {
         handle_login(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "UPLOAD_QUESTIONS") == 0) {
         handle_upload_questions(ctx, fd, msg->data);
+    } else if (strcmp(msg->type, "UPLOAD_START") == 0) {
+        handle_upload_start(ctx, fd, msg->data);
+    } else if (strcmp(msg->type, "UPLOAD_CHUNK") == 0) {
+        handle_upload_chunk(ctx, fd, msg->data);
+    } else if (strcmp(msg->type, "UPLOAD_END") == 0) {
+        handle_upload_end(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "CREATE_ROOM") == 0) {
         handle_create_room(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "JOIN_ROOM") == 0) {

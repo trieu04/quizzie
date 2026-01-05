@@ -1,31 +1,91 @@
 id,question,A,B,C,D,answer,difficulty
-1,TCP là giao thức?,Kết nối,Không kết nối,Kết nối với mã hóa,Đa hướng,A,easy
-2,UDP là giao thức?,Kết nối,Không kết nối,Đảm bảo thứ tự,Mã hóa,B,easy
-3,HTTP hoạt động ở tầng?,Vận chuyển,Mạng,Vật lý,Ứng dụng,D,easy
-4,Lệnh ping sử dụng giao thức?,TCP,UDP,ICMP,HTTP,C,easy
-5,Cổng mặc định SSH?,20,21,22,23,C,easy
-6,Thiết bị hoạt động ở lớp vật lý?,Repeater,Switch,Router,Firewall,A,easy
-7,Cổng FTP mặc định?,21,22,23,80,A,easy
-8,DHCP cấp phát gì?,Hostname,IP Address,MAC Address,Port Number,B,easy
-9,Địa chỉ loopback IPv4?,127.0.0.1,192.168.1.1,10.0.0.1,0.0.0.0,A,easy
-10,IPv4 có bao nhiêu bit?,16,32,64,128,B,easy
-11,Cổng mặc định của HTTP?,21,22,80,443,C,medium
-12,Cổng mặc định của HTTPS?,80,110,143,443,D,medium
-13,DNS thường dùng cổng nào?,21,25,53,443,C,medium
-14,Switch hoạt động ở tầng?,Vật lý,Liên kết dữ liệu,Mạng,Ứng dụng,B,medium
-15,Router hoạt động ở tầng?,Vật lý,Liên kết dữ liệu,Mạng,Ứng dụng,C,medium
-16,Giao thức dùng bắt tay 3 bước?,TCP,UDP,ICMP,ARP,A,medium
-17,Thiết bị giảm collision domain?,Hub,Switch,Repeater,Bridge,B,medium
-18,Dải địa chỉ IPv4 private lớp C?,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,224.0.0.0/4,A,medium
-19,Wireshark dùng để?,Soạn thảo mã,Phân tích gói tin,Quản lý cơ sở dữ liệu,Giả lập mạng,B,medium
-20,Địa chỉ MAC có bao nhiêu bit?,32,48,64,128,B,medium
-21,OSPF là giao thức định tuyến?,Distance Vector,Link State,Hybrid,Path Vector,B,hard
-22,BGP chạy trên giao thức vận chuyển nào?,UDP,TCP,ICMP,None,B,hard
-23,Số hop tối đa của RIP?,15,16,255,Không giới hạn,B,hard
-24,NAT overload còn gọi là?,Static NAT,Dynamic NAT,PAT,Proxy,C,hard
-25,VLAN Trunking Protocol (VTP) mode nào không forward?,Server,Client,Transparent,Forward,C,hard
-26,Spanning Tree Protocol (STP) chống?,Broadcast storm,Switching loop,DDoS,Spoofing,B,hard
-27,EIGRP sử dụng metric dựa trên?,Hop count,Bandwidth & Delay,Cost,Path vector,B,hard
-28,IPv6 có bao nhiêu bit?,32,64,128,256,C,hard
-29,Địa chỉ IPv6 unicast link-local bắt đầu?,FE80,FF00,2001,FC00,A,hard
-30,MPLS hoạt động ở tầng nào?,Layer 2,Layer 3,Layer 2.5,Layer 4,C,hard
+1,Mạng PAN là?,Cá nhân,Cục bộ,Diện rộng,Toàn cầu,A,easy
+2,Thiết bị kết nối Internet?,Switch,Router,Modem,Hub,C,easy
+3,Địa chỉ IP dùng để?,Xác định thiết bị,Xác định người dùng,Mã hóa,Bảo mật,A,easy
+4,Giao thức web phổ biến?,FTP,HTTP,SMTP,POP3,B,easy
+5,Hub hoạt động tầng?,1,2,3,4,A,easy
+6,Switch chuyển tiếp dựa trên?,IP,MAC,Port,Protocol,B,easy
+7,Router dùng để?,Định tuyến,Chia VLAN,Khuếch đại,Sniff,A,easy
+8,Tầng Transport gồm?,TCP/UDP,IP,ICMP,ARP,A,easy
+9,Địa chỉ MAC còn gọi?,Địa chỉ vật lý,Địa chỉ logic,IP,Port,A,easy
+10,WiFi chuẩn phổ biến?,802.3,802.11,802.1Q,802.15,B,easy
+11,HTTP là giao thức?,Client-Server,Peer-to-peer,Broadcast,Multicast,A,easy
+12,HTTPS thêm gì?,Mã hóa,Tăng tốc,Nén,Broadcast,A,easy
+13,IPv4 dạng?,Thập phân,Nhị phân,Hexadecimal,Octal,A,easy
+14,IPv6 viết dạng?,Hexadecimal,Decimal,Binary,Octal,A,easy
+15,DNS server công cộng?,8.8.8.8,192.168.1.1,127.0.0.1,255.255.255.0,A,easy
+16,Cổng FTP?,21,22,23,25,A,easy
+17,Cổng SMTP?,21,22,25,110,C,easy
+18,Cổng POP3?,25,80,110,143,C,easy
+19,Cổng IMAP?,110,143,25,53,B,easy
+20,Telnet là?,Remote login,Web,Mail,File,A,easy
+21,SSH khác Telnet?,Mã hóa,Nhanh hơn,Dễ dùng,Không port,A,easy
+22,Ping dùng ICMP?,Echo request,ARP,DNS,TCP,A,easy
+23,Địa chỉ broadcast IPv4?,Host cuối,Host đầu,Network,Gateway,A,easy
+24,Subnet mask mặc định Class C?,255.0.0.0,255.255.0.0,255.255.255.0,255.255.255.128,C,easy
+25,Loopback IPv6?,::1,::,ff02::1,2001::1,A,easy
+26,Mạng WLAN là?,Không dây,Có dây,Quang,Ảo,A,easy
+27,Access Point nối?,WiFi-LAN,LAN-WAN,VPN,Firewall,A,easy
+28,Firewall lọc?,Gói tin,Ứng dụng,Người dùng,Cả A,B,C,D,easy
+29,Proxy ẩn?,IP client,IP server,Port,DNS,A,easy
+30,VPN tạo?,Tunnel,Mạng LAN,VLAN,DMZ,A,easy
+31,DMZ là?,Vùng trung gian,Vùng LAN,Vùng WAN,Vùng WiFi,A,easy
+32,ICMP báo lỗi?,Destination unreachable,ACK,SYN,FIN,A,easy
+33,Frame Ethernet có?,MAC src/dst,IP,Port,User,A,easy
+34,ARP cache lưu?,IP-MAC,MAC-IP,DNS,Port,A,easy
+35,Default port DNS?,21,53,80,443,B,easy
+36,NAT đặt ở?,Router,Switch,Hub,Server,A,easy
+37,Private IP Class A?,10.0.0.0,172.16.0.0,192.168.0.0,127.0.0.0,A,easy
+38,Private IP Class B?,172.16.0.0,10.0.0.0,192.168.0.0,169.254.0.0,A,easy
+39,Private IP Class C?,192.168.0.0,10.0.0.0,172.16.0.0,224.0.0.0,A,easy
+40,Multicast IPv4?,224.0.0.0,127.0.0.0,255.255.255.255,0.0.0.0,A,easy
+41,OSI tầng Presentation?,Mã hóa,Nén,Chuyển đổi,Cả A,B,C,D,medium
+42,Session layer dùng?,Quản lý phiên,Định tuyến,Truyền dữ liệu,Mã hóa,A,medium
+43,Transport đảm bảo?,End-to-end,Routing,Broadcast,ARP,A,medium
+44,Sliding window?,Kiểm soát luồng,Mã hóa,Bảo mật,NAT,A,medium
+45,TCP flow control dùng?,Window size,TTL,Checksum,MTU,A,medium
+46,UDP checksum?,Tùy chọn,Bắt buộc,Không có,Mã hóa,A,medium
+47,Port ephemeral?,Tạm thời,Cố định,Well-known,System,A,medium
+48,Netstat dùng?,Xem kết nối,Định tuyến,Capture,Bảo mật,A,medium
+49,ARP request là?,Broadcast,Unicast,Multicast,Anycast,A,medium
+50,ICMP redirect?,Thông báo route,Lỗi,Broadcast,Flow,A,medium
+51,VLAN trunk?,Nhiều VLAN,1 VLAN,Không tag,Access,A,medium
+52,Native VLAN?,Không tag,Tag 1,Tag tất cả,VPN,A,medium
+53,CSMA/CA dùng?,WiFi,Ethernet,FDDI,ATM,A,medium
+54,Spanning Tree tránh?,Loop,DoS,ARP spoof,Sniff,A,medium
+55,MAC flooding?,Làm đầy bảng MAC,Tấn công DNS,DoS server,ARP,A,medium
+56,Port security?,Giới hạn MAC,Mã hóa,Routing,NAT,A,medium
+57,ACL chuẩn lọc?,IP nguồn,IP đích,Port,Protocol,A,medium
+58,Extended ACL lọc?,IP+Port,MAC,DNS,User,A,medium
+59,NAT Static?,1-1,Many-1,Pool,Overload,A,medium
+60,PAT còn gọi?,NAT overload,Static NAT,Dynamic NAT,DNAT,A,medium
+61,Routing table chứa?,Network,Next hop,Metric,Cả A,B,C,D,medium
+62,Administrative distance?,Độ tin cậy,Băng thông,Delay,Cost,A,medium
+63,RIP giới hạn hop?,15,16,30,255,A,medium
+64,OSPF dùng thuật toán?,Dijkstra,Bellman-Ford,A*,Flooding,A,medium
+65,BGP thuộc loại?,Path vector,Distance vector,Link state,Hybrid,A,medium
+66,Anycast dùng?,IPv6,Load balancing,Routing,Cả A,B,C,D,medium
+67,DHCP cấp?,IP tự động,MAC,DNS,Route,A,medium
+68,DHCP DORA?,Discover-Offer-Request-Ack,4 bước,UDP,Cả A,B,C,D,medium
+69,TTL giảm?,Qua router,Qua switch,Qua hub,Qua AP,A,medium
+70,Fragment offset dùng?,Ghép gói,Mã hóa,Routing,Checksum,A,medium
+71,TCP flags FIN?,Kết thúc kết nối,Bắt đầu,Reset,Ack,A,hard
+72,TCP RST khi?,Lỗi kết nối,Bình thường,Timeout,Handshake,A,hard
+73,Half-open attack?,SYN flood,ARP spoof,MITM,Smurf,A,hard
+74,Smurf attack dùng?,ICMP broadcast,TCP,UDP,DNS,A,hard
+75,IP checksum kiểm tra?,Header,Payload,Cả hai,Không,A,hard
+76,MTU path discovery?,Không fragment,ICMP,DF flag,Cả A,B,C,D,hard
+77,IPv6 header đơn giản vì?,Không checksum,Không fragment,Nhiều extension,Cả A,B,C,D,hard
+78,Neighbor Discovery thay?,ARP,RARP,DHCP,ICMP,A,hard
+79,Flow label IPv6 dùng?,QoS,Routing,Security,NAT,A,hard
+80,Link aggregation?,Gộp đường,Tăng băng thông,Redundancy,Cả A,B,C,D,hard
+81,HSRP dùng?,Gateway dự phòng,Routing,BGP,NAT,A,hard
+82,VRRP là?,Chuẩn mở,HSRP Cisco,Load balancer,VPN,A,hard
+83,802.11 frame khác Ethernet?,Control frame,Management,ACK,Cả A,B,C,D,hard
+84,WPA2 dùng?,AES,WEP,DES,RC4,A,hard
+85,WPA3 cải thiện?,Handshake,Bảo mật,Cả hai,Không,C,hard
+86,IDS signature-based?,Theo mẫu,Theo hành vi,AI,Heuristic,A,hard
+87,IPS inline nghĩa?,Chặn trực tiếp,Giám sát,Mirror,Log,A,hard
+88,NetFlow dùng?,Phân tích lưu lượng,Bảo mật,Routing,NAT,A,hard
+89,BGP hijacking?,Chiếm route,DoS,MITM,DNS,A,hard
+90,SD-WAN ưu điểm?,Quản lý tập trung,Chi phí thấp,Định tuyến thông minh,Cả A,B,C,D,hard

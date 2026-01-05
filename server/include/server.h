@@ -55,6 +55,17 @@ typedef struct {
     char data[1000];
 } Message;
 
+// Upload chunk buffer
+typedef struct {
+    char filename[128];
+    char* data;
+    size_t current_size;
+    size_t capacity;
+    int total_chunks;
+    int received_chunks;
+    bool active;
+} UploadBuffer;
+
 typedef struct ServerContext {
     int server_fd;
     int epoll_fd;
@@ -64,6 +75,7 @@ typedef struct ServerContext {
     int room_count;
     int next_room_id;  // Room ID counter
     bool running;
+    UploadBuffer upload_buffers[MAX_CLIENTS];  // One buffer per client
 } ServerContext;
 
 // Function prototypes

@@ -51,7 +51,7 @@ static void on_upload_page_clicked(GtkWidget *widget, gpointer data) {
 	(void)widget;
 	ClientContext* ctx = (ClientContext*)data;
 	ctx->current_state = PAGE_ADMIN_UPLOAD;
-	ctx->force_page_refresh = true;
+	ui_navigate_to_page(PAGE_ADMIN_UPLOAD);
 }
 
 static void on_refresh_logs_clicked(GtkWidget *widget, gpointer data) {
@@ -130,7 +130,7 @@ GtkWidget* create_admin_panel_page(ClientContext* ctx) {
 	gtk_style_context_add_class(gtk_widget_get_style_context(view_rooms_button), "btn-secondary");
 	gtk_box_pack_start(GTK_BOX(button_grid), view_rooms_button, TRUE, TRUE, 0);
 
-	GtkWidget *upload_page_button = gtk_button_new_with_label("Upload Question Bank");
+	GtkWidget *upload_page_button = gtk_button_new_with_label("📄 Preview Question Banks");
 	gtk_widget_set_size_request(upload_page_button, -1, 45);
 	g_signal_connect(upload_page_button, "clicked", G_CALLBACK(on_upload_page_clicked), ctx);
 	gtk_style_context_add_class(gtk_widget_get_style_context(upload_page_button), "btn-secondary");

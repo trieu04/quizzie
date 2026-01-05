@@ -146,3 +146,54 @@
 [2026-01-05 23:39:57] ROOM_CREATED id=1 host=tkadmin duration=300
 [2026-01-05 23:40:04] ROOM_DELETED id=1
 [2026-01-05 23:40:10] ROOM_CREATED id=2 host=tkadmin duration=300
+[2026-01-05 16:17:38] CLIENT_CONNECT fd=5
+[2026-01-05 16:17:38] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 16:17:57] ROOM_CREATED id=1 host=tkadmin duration=300
+[2026-01-05 16:18:06] ROOM_DELETED id=1
+[2026-01-05 16:18:06] ROOM_CREATED id=2 host=tkadmin duration=300
+[2026-01-05 16:18:11] ROOM_DELETED id=2
+[2026-01-05 16:18:11] ROOM_CREATED id=3 host=tkadmin duration=300
+[2026-01-05 16:18:21] ROOM_DELETED id=3
+[2026-01-05 16:18:21] ROOM_CREATED id=4 host=tkadmin duration=300
+[2026-01-05 16:29:45] CLIENT_CONNECT fd=5
+[2026-01-05 16:29:45] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 16:29:51] CLIENT_CONNECT fd=6
+[2026-01-05 16:29:51] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 16:31:40] CLIENT_CONNECT fd=6
+[2026-01-05 16:31:40] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 16:31:58] CLIENT_CONNECT fd=6
+[2026-01-05 16:31:58] LOGIN_SUCCESS user=test2 role=participant
+[2026-01-05 16:32:06] CLIENT_CONNECT fd=6
+[2026-01-05 16:32:06] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 16:34:39] CLIENT_CONNECT fd=5
+[2026-01-05 16:34:39] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 16:35:06] CLIENT_CONNECT fd=6
+[2026-01-05 16:35:06] REGISTER user=test3
+[2026-01-05 16:35:10] REGISTER user=test3
+[2026-01-05 16:35:44] LOGIN_SUCCESS user=test3 role=participant
+[2026-01-05 16:35:46] LOGIN_SUCCESS user=test3 role=participant
+[2026-01-05 16:35:53] CLIENT_CONNECT fd=6
+[2026-01-05 16:35:53] LOGIN_SUCCESS user=test3 role=participant
+[2026-01-05 16:36:09] ROOM_CREATED id=1 host=tkadmin duration=300
+[2026-01-05 16:44:47] CLIENT_CONNECT fd=5
+[2026-01-05 16:44:47] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 16:44:48] CLIENT_CONNECT fd=6
+[2026-01-05 16:44:48] LOGIN_SUCCESS user=test1 role=participant
+[2026-01-05 16:52:13] CLIENT_CONNECT fd=5
+[2026-01-05 16:52:13] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 16:53:05] CLIENT_CONNECT fd=5
+[2026-01-05 16:53:05] LOGIN_SUCCESS user=tkadmin role=admin
+Saved CSV bank: exam_bank_network.csv
+Saved CSV bank: exam_bank_network.csv
+Saved CSV bank: exam_bank_network.csv
+[2026-01-05 17:03:42] CLIENT_CONNECT fd=5
+[2026-01-05 17:03:42] LOGIN_SUCCESS user=tkadmin role=admin
+Saved CSV bank: practice_bank_math.csv
+[2026-01-05 17:09:21] CLIENT_CONNECT fd=5
+[2026-01-05 17:09:21] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 17:14:55] CLIENT_CONNECT fd=5
+[2026-01-05 17:14:55] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 17:33:39] CLIENT_CONNECT fd=5
+[2026-01-05 17:33:39] LOGIN_SUCCESS user=tkadmin role=admin
+[2026-01-05 17:33:51] ROOM_CREATED id=1 host=tkadmin duration=300
+[2026-01-05 17:33:55] QUIZ_START room_id=1 host=tkadmin clients=0 duration=300

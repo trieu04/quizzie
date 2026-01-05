@@ -1,0 +1,10 @@
+Quiz Result
+====================
+User: test1
+Type: Practice
+Subject: math
+Date: 2026-01-05 16:30:31
+Score: 3 / 10
+Percentage: 30.0%
+Time: 00:29
+====================

@@ -88,7 +88,7 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 
 #### 3.2.3. Khả năng bảo trì (Maintainability)
 - **REQ-MAINT-01**: Code Client và Server được tách biệt rõ ràng theo module (Net, UI/Core, Storage).
-- **REQ-MAINT-02**: Giao thức giao tiếp dạng Text-based dễ dàng cho việc debug và mở rộng.
+- **REQ-MAINT-02**: Giao thức giao tiếp sử dụng JSON với header binary định rõ độ dài và loại tin nhắn, dễ dàng cho việc mở rộng và debug.
 
 ### 3.3. Yêu cầu giao diện (Interface Requirements)
 
@@ -99,8 +99,14 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 - **Màn hình Thi (Quiz)**: Khu vực hiển thị nội dung câu hỏi, 4 nút hoặc Radio button cho đáp án, thanh tiến trình hoặc đồng hồ đếm ngược.
 
 #### 3.3.2. Giao diện giao tiếp (Communication Interface)
-- Protocol: Custom Text-based Protocol.
-- Format: `TYPE:DATA` (Ví dụ: `LOGIN:user1,123456`).
+- Protocol: Binary Header + JSON Payload.
+- Header:
+    - `TotalLength` (4 bytes): Độ dài tổng cộng của gói tin (bao gồm header và payload).
+    - `MSG_TYPE` (3 bytes): Loại tin nhắn (`REQ`, `RES`, `ERR`, `UPD`).
+- Payload: Dữ liệu định dạng JSON, kích thước tối đa 128KB.
+- Ví dụ:
+    - Header: `00000100` (Length) + `REQ` (Type)
+    - Payload: `{"action": "LOGIN", "data": {"username": "user1", "password": "123"}}`
 
 ---
 

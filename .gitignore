@@ -45,3 +45,8 @@ obj/
 .vscode/
 .idea/
 *.code-workspace
+
+
+# AI assistant
+.agent/
+.shared/

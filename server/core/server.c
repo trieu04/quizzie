@@ -2,7 +2,6 @@
 #include "../include/net.h"
 #include "../include/storage.h"
 #include "../include/room.h"
-#include <sys/epoll.h>
 
 // Message parsing constants
 #define MAX_MESSAGE_TYPE_LEN 32
@@ -32,7 +31,8 @@ ServerContext* server_init() {
         return NULL;
     }
     ctx->server_fd = -1;
-    ctx->epoll_fd = -1;
+    ctx->poll_count = 0;
+    memset(ctx->poll_fds, 0, sizeof(ctx->poll_fds));
     ctx->client_count = 0;
     ctx->room_count = 0;
     ctx->next_room_id = 1;
@@ -53,11 +53,16 @@ ServerContext* server_init() {
 
 void server_cleanup(ServerContext* ctx) {
     if (ctx) {
-        if (ctx->epoll_fd != -1) close(ctx->epoll_fd);
         if (ctx->server_fd != -1) close(ctx->server_fd);
         free(ctx);
     }
 }
+
+// ... (existing helper functions: parse_message, find_client_by_fd, etc.) ...
+// Note: I will use a different strategy here since replace_file_content requires exact match for TargetContent.
+// I will replace the whole file content or large chunks.
+// Given the file size, I'll replace chunks.
+
 
 // Parse message with format "TYPE:DATA" where DATA can contain colons
 static void parse_message(const char* buffer, char* type, char* data) {
@@ -649,7 +654,6 @@ void server_run(ServerContext* ctx) {
 
     LOG_INFO("Server started");
 
-    struct epoll_event events[MAX_CLIENTS];
     time_t last_save_time = time(NULL);
     time_t last_timer_check = time(NULL);
 
@@ -668,69 +672,81 @@ void server_run(ServerContext* ctx) {
             last_timer_check = now;
         }
 
-        int event_count = epoll_wait(ctx->epoll_fd, events, MAX_CLIENTS, 1000); // 1s timeout
-        for (int i = 0; i < event_count; i++) {
-            int fd = events[i].data.fd;
-            if (fd == ctx->server_fd) {
-                net_accept_client(ctx);
-            } else {
-                // Find client buffer
-                Client* client = find_client_by_fd(ctx, fd);
-                if (!client) {
-                    net_close_client(ctx, fd);
-                    continue;
-                }
-                
-                char temp_buf[BUFFER_SIZE];
-                int len = net_receive_from_client(fd, temp_buf, BUFFER_SIZE - 1);
-                
-                if (len > 0) {
-                    temp_buf[len] = '\0';
-                    
-                    // Append to client's receive buffer
-                    if (client->recv_len + len < (int)sizeof(client->recv_buffer) - 1) {
-                        memcpy(client->recv_buffer + client->recv_len, temp_buf, len);
-                        client->recv_len += len;
-                        client->recv_buffer[client->recv_len] = '\0';
-                    } else {
-                        // Buffer overflow, reset
-                        printf("[TCP] Buffer overflow for fd=%d, resetting\n", fd);
-                        client->recv_len = 0;
-                        client->recv_buffer[0] = '\0';
+        int poll_count = poll(ctx->poll_fds, ctx->poll_count, 1000); // 1s timeout
+        if (poll_count < 0) {
+            perror("poll");
+            break;
+        }
+
+        for (int i = 0; i < ctx->poll_count; i++) {
+            if (ctx->poll_fds[i].revents & POLLIN) {
+                int fd = ctx->poll_fds[i].fd;
+                if (fd == ctx->server_fd) {
+                    net_accept_client(ctx);
+                } else {
+                    // Find client buffer
+                    Client* client = find_client_by_fd(ctx, fd);
+                    if (!client) {
+                        // If client not found but fs is in poll_fds, close it to update poll_fds
+                        net_close_client(ctx, fd);
+                        // Decrement i because net_close_client might swap the last element to the current position
+                        i--; 
                         continue;
                     }
                     
-                    // Parse complete messages (delimited by \n)
-                    char* line_start = client->recv_buffer;
-                    char* newline;
-                    while ((newline = strchr(line_start, '\n')) != NULL) {
-                        *newline = '\0';  // Terminate the line
+                    char temp_buf[BUFFER_SIZE];
+                    int len = net_receive_from_client(fd, temp_buf, BUFFER_SIZE - 1);
+                    
+                    if (len > 0) {
+                        temp_buf[len] = '\0';
                         
-                        if (strlen(line_start) > 0) {
-                            // Parse and handle message
-                            Message msg;
-                            memset(&msg, 0, sizeof(msg));
-                            parse_message(line_start, msg.type, msg.data);
-                            
-                            printf("[TCP] Processing message type: %s from fd=%d\n", msg.type, fd);
-                            dispatch_message(ctx, fd, &msg);
+                        // Append to client's receive buffer
+                        if (client->recv_len + len < (int)sizeof(client->recv_buffer) - 1) {
+                            memcpy(client->recv_buffer + client->recv_len, temp_buf, len);
+                            client->recv_len += len;
+                            client->recv_buffer[client->recv_len] = '\0';
+                        } else {
+                            // Buffer overflow, reset
+                            printf("[TCP] Buffer overflow for fd=%d, resetting\n", fd);
+                            client->recv_len = 0;
+                            client->recv_buffer[0] = '\0';
+                            continue;
                         }
                         
-                        line_start = newline + 1;
-                    }
-                    
-                    // Move remaining incomplete data to start of buffer
-                    int remaining = strlen(line_start);
-                    if (remaining > 0) {
-                        memmove(client->recv_buffer, line_start, remaining + 1);
-                        client->recv_len = remaining;
+                        // Parse complete messages (delimited by \n)
+                        char* line_start = client->recv_buffer;
+                        char* newline;
+                        while ((newline = strchr(line_start, '\n')) != NULL) {
+                            *newline = '\0';  // Terminate the line
+                            
+                            if (strlen(line_start) > 0) {
+                                // Parse and handle message
+                                Message msg;
+                                memset(&msg, 0, sizeof(msg));
+                                parse_message(line_start, msg.type, msg.data);
+                                
+                                printf("[TCP] Processing message type: %s from fd=%d\n", msg.type, fd);
+                                dispatch_message(ctx, fd, &msg);
+                            }
+                            
+                            line_start = newline + 1;
+                        }
+                        
+                        // Move remaining incomplete data to start of buffer
+                        int remaining = strlen(line_start);
+                        if (remaining > 0) {
+                            memmove(client->recv_buffer, line_start, remaining + 1);
+                            client->recv_len = remaining;
+                        } else {
+                            client->recv_buffer[0] = '\0';
+                            client->recv_len = 0;
+                        }
                     } else {
-                        client->recv_buffer[0] = '\0';
-                        client->recv_len = 0;
+                        // Client disconnect
+                        net_close_client(ctx, fd);
+                        // Decrement i as poll array might have shrunk
+                        i--;
                     }
-                } else {
-                    // Client disconnect
-                    net_close_client(ctx, fd);
                 }
             }
         }

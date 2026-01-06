@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -g -D_XOPEN_SOURCE=500
 GTK_CFLAGS = `pkg-config --cflags gtk+-3.0`
 GTK_LDFLAGS = `pkg-config --libs gtk+-3.0`
-LDFLAGS = -pthread
+LDFLAGS = 
 
 # Directories
 BIN_DIR = bin

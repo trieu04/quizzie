@@ -2,7 +2,7 @@
 #define SERVER_H
 
 #include "common.h"
-#include <sys/epoll.h>
+#include <poll.h>
 #include <time.h>
 
 // User role enum
@@ -68,7 +68,8 @@ typedef struct {
 
 typedef struct ServerContext {
     int server_fd;
-    int epoll_fd;
+    struct pollfd poll_fds[MAX_CLIENTS + 1]; // +1 for server socket
+    int poll_count;
     Client clients[MAX_CLIENTS];
     Room rooms[MAX_ROOMS];
     int client_count;

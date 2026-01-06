@@ -42,21 +42,10 @@ int net_setup(ServerContext* ctx) {
         perror("fcntl");
     }
 
-    // Setup epoll
-    ctx->epoll_fd = epoll_create1(0);
-    if (ctx->epoll_fd < 0) {
-        LOG_ERROR("epoll_create1() failed");
-        perror("epoll_create1");
-        return -1;
-    }
-    struct epoll_event event = {0};
-    event.events = EPOLLIN;
-    event.data.fd = ctx->server_fd;
-    if (epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ctx->server_fd, &event) < 0) {
-        LOG_ERROR("epoll_ctl() failed");
-        perror("epoll_ctl");
-        return -1;
-    }
+    // Setup poll
+    ctx->poll_fds[0].fd = ctx->server_fd;
+    ctx->poll_fds[0].events = POLLIN;
+    ctx->poll_count = 1;
 
     return 0;
 }
@@ -80,11 +69,13 @@ int net_accept_client(ServerContext* ctx) {
             return -1;
         }
 
-        struct epoll_event event = {0};
-        event.events = EPOLLIN;
-        event.data.fd = client_sock;
-        if (epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, client_sock, &event) < 0) {
-            LOG_ERROR("epoll_ctl() failed for client socket");
+        // Add to poll
+        if (ctx->poll_count < MAX_CLIENTS + 1) {
+            ctx->poll_fds[ctx->poll_count].fd = client_sock;
+            ctx->poll_fds[ctx->poll_count].events = POLLIN;
+            ctx->poll_count++;
+        } else {
+            LOG_ERROR("Poll array full (should not happen due to client_count check)");
             close(client_sock);
             return -1;
         }
@@ -120,6 +111,8 @@ int net_accept_client(ServerContext* ctx) {
     }
     return client_sock;
 }
+
+// ... existing net_send_to_client and net_receive_from_client ...
 
 int net_send_to_client(int sock, const char* data, size_t len) {
     // Add newline delimiter if not present
@@ -178,8 +171,17 @@ void net_close_client(ServerContext* ctx, int sock) {
     // Log disconnect
     storage_log_with_timestamp("CLIENT_DISCONNECT fd=%d", sock);
     
-    epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
+    
+    // Remove from poll array
+    for (int i = 0; i < ctx->poll_count; i++) {
+        if (ctx->poll_fds[i].fd == sock) {
+            // Swap with last element
+            ctx->poll_fds[i] = ctx->poll_fds[ctx->poll_count - 1];
+            ctx->poll_count--;
+            break;
+        }
+    }
     
     // Remove from clients array
     int found_idx = -1;

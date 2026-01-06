@@ -1,0 +1,38 @@
+
+1,Python là ngôn ngữ lập trình được sử dụng phổ biến hiện nay,Ngôn ngữ biên dịch,Ngôn ngữ thông dịch,Ngôn ngữ máy,Ngôn ngữ đánh dấu,B,easy
+2,Java là ngôn ngữ chạy trên môi trường nào,JVM,CLR,Hệ điều hành,Phần cứng,A,easy
+3,HTML được sử dụng với mục đích chính là gì,Tạo giao diện web,Xử lý logic,Lưu dữ liệu,Quản lý mạng,A,easy
+4,CSS được dùng để làm gì trong phát triển web,Trang trí giao diện,Xử lý dữ liệu,Tạo server,Quản lý CSDL,A,easy
+5,Python sử dụng hàm nào để in dữ liệu ra màn hình,print,echo,cout,printf,A,easy
+6,Git là công cụ được dùng để làm gì,Quản lý phiên bản,Soạn thảo code,Thiết kế UI,Kiểm thử,A,easy
+7,JavaScript thường được chạy ở đâu,Trình duyệt web,Trình biên dịch,Hệ điều hành,CPU,A,easy
+8,SQL là ngôn ngữ dùng để làm gì,Quản lý cơ sở dữ liệu,Lập trình giao diện,Xây dựng mạng,Bảo mật,A,easy
+9,Python file thường có phần mở rộng là gì,py,pt,python,pyt,A,easy
+10,Trong C toán tử nào dùng để so sánh bằng,==,=,===,!=,A,easy
+11,Java sử dụng kiểu dữ liệu nào cho số nguyên,int,float,double,char,A,easy
+12,Git clone có chức năng gì,Sao chép kho mã nguồn,Gộp nhánh,Xóa nhánh,Đẩy code,A,easy
+13,Python list là kiểu dữ liệu có đặc điểm gì,Có thể thay đổi,Không thể thay đổi,Cố định kích thước,Hằng số,A,easy
+14,HTML thẻ nào dùng để tạo liên kết,a,link,href,url,A,easy
+15,IDE phổ biến cho lập trình Java là gì,Eclipse,Photoshop,Excel,Word,A,easy
+
+16,Nguyên lý đóng gói trong OOP có ý nghĩa gì,Bảo vệ dữ liệu,Kế thừa lớp,Đa hình,Trừu tượng,A,medium
+17,Stack là cấu trúc dữ liệu hoạt động theo nguyên tắc nào,Vào sau ra trước,Vào trước ra trước,Ngẫu nhiên,Ưu tiên,B,medium
+18,Queue là cấu trúc dữ liệu có đặc điểm gì,Vào trước ra trước,Vào sau ra trước,Không thứ tự,Ngẫu nhiên,A,medium
+19,Khóa chính trong SQL dùng để làm gì,Xác định duy nhất bản ghi,Liên kết bảng,Tăng tốc truy vấn,Mã hóa,A,medium
+20,Python lambda là gì,Hàm ẩn danh,Hàm đệ quy,Module,Class,A,medium
+21,Git merge được sử dụng trong trường hợp nào,Gộp các nhánh code,Tạo nhánh mới,Xóa nhánh,Reset commit,A,medium
+22,HTTP GET và POST khác nhau chủ yếu ở điểm nào,Cách gửi dữ liệu,Bảo mật giao diện,Tốc độ mạng,Ngôn ngữ,A,medium
+23,Interface trong Java có đặc điểm nào sau đây,Không có biến instance,Có constructor,Có state riêng,Có main,A,medium
+24,Độ phức tạp O n log n thường gặp trong thuật toán nào,Sắp xếp hiệu quả,Tìm tuyến tính,Vòng lặp đơn,Đệ quy đơn,A,medium
+25,SQL JOIN dùng để làm gì,Kết hợp dữ liệu nhiều bảng,Xóa dữ liệu,Tạo bảng mới,Tạo index,A,medium
+26,Generator trong Python giúp ích điều gì,Tiết kiệm bộ nhớ,Tăng tốc CPU,Mã hóa dữ liệu,Đa luồng,A,medium
+27,Deadlock trong lập trình xảy ra khi nào,Các tiến trình chờ nhau,Lỗi cú pháp,Lỗi logic,Lỗi biên dịch,A,medium
+28,Kế thừa trong OOP cho phép điều gì,Tái sử dụng mã nguồn,Tăng tốc CPU,Giảm RAM,Bảo mật,A,medium
+29,Garbage collection trong Java có tác dụng gì,Dọn dẹp bộ nhớ tự động,Tăng tốc chương trình,Bảo mật dữ liệu,Quản lý luồng,A,medium
+30,Hash table có ưu điểm nổi bật nào,Tìm kiếm nhanh,Sắp xếp tốt,Duyệt tuần tự,Ít bộ nhớ,A,medium
+
+31,Thuật toán quicksort có độ phức tạp trung bình là bao nhiêu,O n log n,O n2,O n,O log n,A,hard
+32,Race condition xảy ra trong trường hợp nào,Nhiều luồng truy cập dữ liệu chung,Thiếu RAM,Lỗi cú pháp,Lỗi mạng,A,hard
+33,Tính nhất quán trong ACID của SQL có ý nghĩa gì,Dữ liệu luôn hợp lệ,Tốc độ cao,Bảo mật mạnh,Phân tán,A,hard
+34,Memory leak là hiện tượng gì,Bộ nhớ không được giải phóng,Lỗi CPU,Lỗi IO,Deadlock,A,hard
+35,Định lý CAP cho biết hệ phân tán chỉ đảm bảo tối đa bao nhiêu thuộc tính,2,1,3,4,A,hard

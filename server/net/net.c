@@ -29,7 +29,7 @@ int net_setup(ServerContext* ctx) {
         perror("bind");
         return -1;
     }
-    if (listen(ctx->server_fd, 5) < 0) {
+    if (listen(ctx->server_fd, SERVER_BACKLOG) < 0) {
         LOG_ERROR("listen() failed");
         perror("listen");
         return -1;
@@ -90,15 +90,21 @@ int net_accept_client(ServerContext* ctx) {
         }
 
         // Initialize client
-        ctx->clients[ctx->client_count].sock = client_sock;
-        memset(ctx->clients[ctx->client_count].username, 0, sizeof(ctx->clients[ctx->client_count].username));
-        strcpy(ctx->clients[ctx->client_count].username, "User");
-        ctx->clients[ctx->client_count].role = ROLE_PARTICIPANT;
-        ctx->clients[ctx->client_count].is_taking_quiz = false;
-        ctx->clients[ctx->client_count].has_submitted = false;
-        memset(ctx->clients[ctx->client_count].answers, 0, sizeof(ctx->clients[ctx->client_count].answers));
-        memset(ctx->clients[ctx->client_count].recv_buffer, 0, sizeof(ctx->clients[ctx->client_count].recv_buffer));
-        ctx->clients[ctx->client_count].recv_len = 0;
+        Client* new_client = &ctx->clients[ctx->client_count];
+        new_client->sock = client_sock;
+        new_client->username[0] = '\0';
+        strncpy(new_client->username, "User", sizeof(new_client->username) - 1);
+        new_client->username[sizeof(new_client->username) - 1] = '\0';
+        new_client->role = ROLE_PARTICIPANT;
+        new_client->is_taking_quiz = false;
+        new_client->has_submitted = false;
+        new_client->score = 0;
+        new_client->total = 0;
+        new_client->quiz_start_time = 0;
+        new_client->current_question = 0;
+        new_client->answers[0] = '\0';
+        new_client->recv_buffer[0] = '\0';
+        new_client->recv_len = 0;
         ctx->client_count++;
         printf("[TCP] Client connected: fd=%d (total: %d)\n", client_sock, ctx->client_count);
         LOG_INFO("New client connected");
@@ -119,18 +125,20 @@ int net_send_to_client(int sock, const char* data, size_t len) {
     // Add newline delimiter if not present
     char buffer[BUFFER_SIZE + 64];
     size_t total_len = len;
+    const char* send_data = data;
+    
     if (len < sizeof(buffer) - 2 && (len == 0 || data[len-1] != '\n')) {
         memcpy(buffer, data, len);
         buffer[len] = '\n';
         buffer[len+1] = '\0';
         total_len = len + 1;
-        data = buffer;
+        send_data = buffer;
     }
 
     // Send with partial write handling
     size_t sent = 0;
     while (sent < total_len) {
-        int result = send(sock, data + sent, total_len - sent, 0);
+        int result = send(sock, send_data + sent, total_len - sent, 0);
         if (result > 0) {
             sent += result;
         } else if (result < 0) {
@@ -146,7 +154,7 @@ int net_send_to_client(int sock, const char* data, size_t len) {
         }
     }
     if (sent > 0) {
-        printf("[TCP] SEND fd=%d: %.*s\n", sock, (int)(sent > 100 ? 100 : sent), data);
+        printf("[TCP] SEND fd=%d: %.*s\n", sock, (int)(sent > 100 ? 100 : sent), send_data);
     }
     return sent;
 }
@@ -154,6 +162,7 @@ int net_send_to_client(int sock, const char* data, size_t len) {
 int net_receive_from_client(int sock, char* buffer, size_t len) {
     int result = recv(sock, buffer, len, 0);
     if (result > 0) {
+        buffer[result] = '\0';  // Null terminate for safety
         printf("[TCP] RECV fd=%d: %.*s\n", sock, result, buffer);
     } else if (result == 0) {
         printf("[TCP] Client disconnected: fd=%d\n", sock);
@@ -165,6 +174,10 @@ int net_receive_from_client(int sock, char* buffer, size_t len) {
 
 void net_close_client(ServerContext* ctx, int sock) {
     printf("[TCP] Closing client connection: fd=%d\n", sock);
+    
+    // Log disconnect
+    storage_log_with_timestamp("CLIENT_DISCONNECT fd=%d", sock);
+    
     epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
     

@@ -106,17 +106,17 @@ void ui_update_status_bar(ClientContext* ctx) {
     if (!ui_context.status_bar) return;
     
     // Update Username
-    char user_text[64];
+    char user_text[80];
     if (ctx->username[0] != '\0') {
-        snprintf(user_text, sizeof(user_text), "User: %s", ctx->username);
+        snprintf(user_text, sizeof(user_text), "User: %.63s", ctx->username);
     } else {
         snprintf(user_text, sizeof(user_text), "Not logged in");
     }
     gtk_label_set_text(GTK_LABEL(ui_context.label_username), user_text);
     
     // Update Server
-    char server_text[100];
-    snprintf(server_text, sizeof(server_text), "Server: %s:%d", ctx->server_ip, ctx->server_port);
+    char server_text[160];
+    snprintf(server_text, sizeof(server_text), "Server: %.120s:%d", ctx->server_ip, ctx->server_port);
     gtk_label_set_text(GTK_LABEL(ui_context.label_server), server_text);
     
     // Update Connection
@@ -131,11 +131,11 @@ void ui_update_status_bar(ClientContext* ctx) {
         gtk_style_context_add_class(conn_ctx, "status-disconnected");
     }
     
-    // Show/Hide Logout based on page
-    if (ctx->current_state == PAGE_LOGIN || ctx->current_state == PAGE_REGISTER) {
-        gtk_widget_hide(ui_context.btn_logout);
-    } else {
+    // Show/Hide Logout - only visible on dashboard pages
+    if (ctx->current_state == PAGE_DASHBOARD || ctx->current_state == PAGE_ADMIN_PANEL) {
         gtk_widget_show(ui_context.btn_logout);
+    } else {
+        gtk_widget_hide(ui_context.btn_logout);
     }
 }
 
@@ -143,9 +143,10 @@ static gboolean update_server_messages(gpointer data) {
     ClientContext* ctx = (ClientContext*)data;
     if (ctx) { // Run even if not connected to update "Disconnected" status
         ui_update_status_bar(ctx);
+        AppState old_state = ctx->current_state;
         if (ctx->connected) {
-            AppState old_state = ctx->current_state;
             client_receive_message(ctx);
+        }
         
         // Check if state changed or force refresh requested
         if (old_state != ctx->current_state || ctx->force_page_refresh) {
@@ -181,8 +182,8 @@ static gboolean update_server_messages(gpointer data) {
                 case PAGE_ADMIN_PANEL:
                     page_admin_panel_update(ctx);
                     break;
-                case PAGE_ADMIN_UPLOAD:
-                    page_admin_upload_update(ctx);
+                case PAGE_FILE_PREVIEW:
+                    page_file_preview_update(ctx);
                     break;
                 case PAGE_CREATE_ROOM:
                     page_create_room_update(ctx);
@@ -191,7 +192,6 @@ static gboolean update_server_messages(gpointer data) {
                     page_history_update(ctx);
                     break;
             }
-        }
         }
     }
     return G_SOURCE_CONTINUE;
@@ -205,7 +205,8 @@ void ui_init(int *argc, char ***argv) {
     // Create main window
     ui_context.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(ui_context.window), "Quizzie Client");
-    gtk_window_set_default_size(GTK_WINDOW(ui_context.window), 800, 600);
+    gtk_window_set_default_size(GTK_WINDOW(ui_context.window), 1024, 700);
+    gtk_window_set_resizable(GTK_WINDOW(ui_context.window), TRUE);
     gtk_container_set_border_width(GTK_CONTAINER(ui_context.window), 0);
 
     GtkStyleContext *win_ctx = gtk_widget_get_style_context(ui_context.window);
@@ -296,8 +297,8 @@ void ui_navigate_to_page(AppState state) {
         case PAGE_ADMIN_PANEL:
             new_page = create_admin_panel_page(ctx);
             break;
-        case PAGE_ADMIN_UPLOAD:
-            new_page = create_admin_upload_page(ctx);
+        case PAGE_FILE_PREVIEW:
+            new_page = create_file_preview_page(ctx);
             break;
         case PAGE_CREATE_ROOM:
             new_page = page_create_room_create(ctx);

@@ -18,7 +18,7 @@ typedef enum {
     PAGE_RESULT,
     PAGE_HOST_PANEL,  // New: Host control panel
     PAGE_ADMIN_PANEL,  // Admin panel for room management
-    PAGE_ADMIN_UPLOAD, // Admin CSV upload page
+    PAGE_FILE_PREVIEW, // File preview page
     PAGE_HISTORY,       // Test history page
     PAGE_CREATE_ROOM   // New: Create Room configuration page
 } AppState;
@@ -37,28 +37,28 @@ typedef struct {
     int total_cnt;
 } QuestionFile;
 
-#define MAX_QUESTIONS 20
+#define MAX_QUESTIONS 100
 #define MAX_ROOMS_DISPLAY 20
 #define MAX_PARTICIPANTS 20
 
 typedef struct {
     int id;
-    char question[256];
-    char options[4][128];
+    char question[512];
+    char options[4][256];
     char correct_answer;
     char difficulty[16];
 } Question;
 
 typedef struct {
     int id;
-    char host_username[32];
+    char host_username[MAX_USERNAME_LEN];
     int player_count;
     int state;         // 0: waiting, 1: started, 2: finished
     bool is_my_room;   // True if current user is the host
 } RoomInfo;
 
 typedef struct {
-    char username[50];
+    char username[MAX_USERNAME_LEN];
     char status;      // 'W' = waiting, 'T' = taking, 'S' = submitted
     int remaining_time;
     int score;
@@ -74,11 +74,11 @@ typedef struct ClientContext {
     bool force_page_refresh;     // Force page navigation even if state unchanged
     
     // Server connection
-    char server_ip[64];          // Server IP or domain
+    char server_ip[MAX_FILENAME_LEN];          // Server IP or domain
     int server_port;             // Server port
     
     // User state
-    char username[32];
+    char username[MAX_USERNAME_LEN];
     int role;                    // 0 = participant, 1 = admin
     
     // Room state
@@ -91,8 +91,8 @@ typedef struct ClientContext {
     
     // Host panel state
     int quiz_duration;           // Quiz duration in seconds
-    char question_file[64];      // Selected question file
-    char subject[32];            // Selected subject (practice/exam)
+    char question_file[MAX_FILENAME_LEN];      // Selected question file
+    char subject[MAX_SUBJECT_LEN];            // Selected subject (practice/exam)
     ParticipantInfo participants[MAX_PARTICIPANTS];
     int participant_count;
     int stats_waiting;
@@ -106,13 +106,13 @@ typedef struct ClientContext {
     Question questions[MAX_QUESTIONS];
     int question_count;
     int current_question;
-    char answers[MAX_QUESTIONS];
+    char answers[MAX_QUESTIONS * 2];
     int score;
     int total_questions;
     time_t quiz_start_time;      // When client started their quiz
     int time_taken;              // Time taken to complete quiz
     bool is_practice;            // Practice mode flag
-    char practice_answers[256];  // Correct answers for practice mode
+    char practice_answers[MAX_QUESTIONS * 2];  // Correct answers for practice mode
     
     // Quiz availability
     bool quiz_available;         // Whether host has started quiz
@@ -127,11 +127,21 @@ typedef struct ClientContext {
     char status_message[128];
     
     // Available files handling
-    // Available files handling
     char available_files[4096];
     QuestionFile available_files_list[50];
     int available_files_count;
     bool files_refreshed;
+    
+    // Practice subjects handling
+    char practice_subjects[1024];
+    struct {
+        char name[MAX_SUBJECT_LEN];
+        int easy_count;
+        int medium_count;
+        int hard_count;
+    } practice_subjects_list[50];
+    int practice_subjects_count;
+    bool subjects_refreshed;
 } ClientContext;
 
 // Function prototypes

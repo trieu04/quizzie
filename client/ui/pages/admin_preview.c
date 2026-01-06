@@ -5,7 +5,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-static GtkWidget *status_label = NULL;
 static GtkWidget *file_listbox = NULL;
 static GtkWidget *csv_textview = NULL;
 static GtkWidget *file_info_label = NULL;
@@ -74,11 +73,14 @@ static void on_file_selected(GtkListBox *box, GtkListBoxRow *row, gpointer data)
     strncpy(selected_file, filename, sizeof(selected_file) - 1);
     selected_file[sizeof(selected_file) - 1] = '\0';
     
-    // Try different paths
+    // Try different paths - includes both exam and practice subdirectories
     const char* question_dirs[] = {
-        "data/questions",
-        "../data/questions",
-        "../../data/questions",
+        "data/questions/exam",
+        "../data/questions/exam",
+        "../../data/questions/exam",
+        "data/questions/practice",
+        "../data/questions/practice",
+        "../../data/questions/practice",
         NULL
     };
     
@@ -104,11 +106,14 @@ static void load_question_files(ClientContext* ctx) {
     }
     g_list_free(children);
     
-    // Try different paths
+    // Try different paths for exam folder
     const char* question_dirs[] = {
-        "data/questions",
-        "../data/questions",
-        "../../data/questions",
+        "data/questions/exam",
+        "../data/questions/exam",
+        "../../data/questions/exam",
+        "data/questions/practice",
+        "../data/questions/practice",
+        "../../data/questions/practice",
         NULL
     };
     
@@ -119,8 +124,6 @@ static void load_question_files(ClientContext* ctx) {
     }
     
     if (!dir) {
-        strcpy(ctx->status_message, "Error: Could not open questions directory");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         return;
     }
     
@@ -152,11 +155,6 @@ static void load_question_files(ClientContext* ctx) {
     
     closedir(dir);
     
-    char msg[128];
-    snprintf(msg, sizeof(msg), "Found %d question bank file(s)", file_count);
-    strcpy(ctx->status_message, msg);
-    if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    
     gtk_widget_show_all(file_listbox);
 }
 
@@ -173,9 +171,9 @@ static void on_refresh_clicked(GtkWidget *widget, gpointer data) {
     load_question_files(ctx);
 }
 
-GtkWidget* create_admin_upload_page(ClientContext* ctx) {
+GtkWidget* create_file_preview_page(ClientContext* ctx) {
     // Reset statics
-    status_label = NULL;
+
     file_listbox = NULL;
     csv_textview = NULL;
     file_info_label = NULL;
@@ -189,47 +187,29 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     gtk_widget_set_margin_top(header, 20);
     gtk_widget_set_margin_bottom(header, 15);
     
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold'>Preview Question Banks</span>");
-    gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
+    GtkWidget *title = gtk_label_new("Question Banks");
+    gtk_style_context_add_class(gtk_widget_get_style_context(title), "page-title");
     gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 0);
 
-    GtkWidget *subtitle = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(subtitle), "<span size='large' foreground='#5b6472'>View existing question bank files</span>");
-    gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "header-subtitle");
+    GtkWidget *subtitle = gtk_label_new("Browse and preview CSV question files");
+    gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "page-subtitle");
     gtk_box_pack_start(GTK_BOX(header), subtitle, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
-
-    // Status bar
-    GtkWidget *status_frame = gtk_frame_new(NULL);
-    gtk_frame_set_shadow_type(GTK_FRAME(status_frame), GTK_SHADOW_NONE);
-    gtk_style_context_add_class(gtk_widget_get_style_context(status_frame), "card");
-    gtk_widget_set_margin_start(status_frame, 20);
-    gtk_widget_set_margin_end(status_frame, 20);
-    
-    status_label = gtk_label_new("");
-    gtk_label_set_line_wrap(GTK_LABEL(status_label), TRUE);
-    gtk_widget_set_margin_start(status_label, 10);
-    gtk_widget_set_margin_end(status_label, 10);
-    gtk_widget_set_margin_top(status_label, 8);
-    gtk_widget_set_margin_bottom(status_label, 8);
-    gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
-    gtk_container_add(GTK_CONTAINER(status_frame), status_label);
-    gtk_box_pack_start(GTK_BOX(main_box), status_frame, FALSE, FALSE, 0);
 
     // Main content area - horizontal split
     GtkWidget *content_paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_widget_set_margin_start(content_paned, 20);
     gtk_widget_set_margin_end(content_paned, 20);
     gtk_widget_set_margin_bottom(content_paned, 15);
+    gtk_paned_set_position(GTK_PANED(content_paned), 300);  // Set initial divider position
     
     // Left panel - File list
     GtkWidget *left_frame = gtk_frame_new(NULL);
     gtk_frame_set_shadow_type(GTK_FRAME(left_frame), GTK_SHADOW_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(left_frame), "card");
     GtkWidget *left_header = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(left_header), "<b>Question Bank Files</b>");
+    gtk_label_set_markup(GTK_LABEL(left_header), "<b>Available Files</b>");
     gtk_frame_set_label_widget(GTK_FRAME(left_frame), left_header);
     
     GtkWidget *left_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
@@ -239,7 +219,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     gtk_widget_set_margin_bottom(left_box, 10);
     
     // Refresh button
-    GtkWidget *refresh_btn = gtk_button_new_with_label("🔄 Refresh List");
+    GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh List");
     gtk_widget_set_size_request(refresh_btn, -1, 35);
     g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), ctx);
     gtk_style_context_add_class(gtk_widget_get_style_context(refresh_btn), "btn-secondary");
@@ -249,7 +229,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     GtkWidget *scrolled_list = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_list),
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-    gtk_widget_set_size_request(scrolled_list, 250, -1);
+    gtk_widget_set_size_request(scrolled_list, 200, 300);  // Set minimum size
     
     file_listbox = gtk_list_box_new();
     gtk_list_box_set_selection_mode(GTK_LIST_BOX(file_listbox), GTK_SELECTION_SINGLE);
@@ -260,7 +240,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     gtk_box_pack_start(GTK_BOX(left_box), scrolled_list, TRUE, TRUE, 0);
     
     gtk_container_add(GTK_CONTAINER(left_frame), left_box);
-    gtk_paned_pack1(GTK_PANED(content_paned), left_frame, FALSE, FALSE);
+    gtk_paned_pack1(GTK_PANED(content_paned), left_frame, FALSE, TRUE);  // Allow resize and shrink
     
     // Right panel - CSV preview
     GtkWidget *right_frame = gtk_frame_new(NULL);
@@ -279,7 +259,6 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     // File info label
     file_info_label = gtk_label_new("Select a file to preview");
     gtk_widget_set_halign(file_info_label, GTK_ALIGN_START);
-    gtk_style_context_add_class(gtk_widget_get_style_context(file_info_label), "status-bar");
     gtk_box_pack_start(GTK_BOX(right_box), file_info_label, FALSE, FALSE, 0);
     
     // CSV content viewer
@@ -287,6 +266,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_csv),
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrolled_csv), GTK_SHADOW_IN);
+    gtk_widget_set_size_request(scrolled_csv, 400, 300);  // Set minimum size for preview area
     
     csv_textview = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(csv_textview), FALSE);
@@ -305,7 +285,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     gtk_box_pack_start(GTK_BOX(right_box), scrolled_csv, TRUE, TRUE, 0);
     
     gtk_container_add(GTK_CONTAINER(right_frame), right_box);
-    gtk_paned_pack2(GTK_PANED(content_paned), right_frame, TRUE, FALSE);
+    gtk_paned_pack2(GTK_PANED(content_paned), right_frame, TRUE, TRUE);  // Allow resize and shrink
     
     gtk_box_pack_start(GTK_BOX(main_box), content_paned, TRUE, TRUE, 0);
 
@@ -329,8 +309,7 @@ GtkWidget* create_admin_upload_page(ClientContext* ctx) {
     return main_box;
 }
 
-void page_admin_upload_update(ClientContext* ctx) {
-    if (status_label && ctx->status_message[0] != '\0') {
-        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    }
+void page_file_preview_update(ClientContext* ctx) {
+    (void)ctx;
+    // No updates needed for file preview page
 }

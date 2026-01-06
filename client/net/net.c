@@ -32,24 +32,42 @@ int net_connect(ClientContext* ctx, const char* ip, int port) {
 
     // Set socket to non-blocking mode after connection
     int flags = fcntl(ctx->socket_fd, F_GETFL, 0);
-    fcntl(ctx->socket_fd, F_SETFL, flags | O_NONBLOCK);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        close(ctx->socket_fd);
+        ctx->socket_fd = -1;
+        return -1;
+    }
+    if (fcntl(ctx->socket_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL");
+        close(ctx->socket_fd);
+        ctx->socket_fd = -1;
+        return -1;
+    }
 
     ctx->connected = true;
     return 0;
 }
 
 int net_send(ClientContext* ctx, const char* data, size_t len) {
-    if (!ctx || ctx->socket_fd == -1) return -1;
+    if (!ctx || ctx->socket_fd == -1 || !data) return -1;
     
     // Add newline delimiter if not present
     char buffer[BUFFER_SIZE + 64];
     size_t total_len = len;
-    if (len < sizeof(buffer) - 2 && (len == 0 || data[len-1] != '\n')) {
-        memcpy(buffer, data, len);
-        buffer[len] = '\n';
-        buffer[len+1] = '\0';
-        total_len = len + 1;
-        data = buffer;
+    
+    // Check if we need to add newline and have space
+    if (len > 0 && len < sizeof(buffer) - 2 && data[len-1] != '\n') {
+        if (len + 1 < sizeof(buffer)) {
+            memcpy(buffer, data, len);
+            buffer[len] = '\n';
+            buffer[len+1] = '\0';
+            total_len = len + 1;
+            data = buffer;
+        }
+    } else if (len >= sizeof(buffer) - 2) {
+        // Data too large, truncate
+        return -1;
     }
     
     // Send with partial write handling
@@ -72,13 +90,13 @@ int net_send(ClientContext* ctx, const char* data, size_t len) {
 }
 
 int net_receive(ClientContext* ctx, char* buffer, size_t len) {
-    if (!ctx || ctx->socket_fd == -1) return -1;
+    if (!ctx || ctx->socket_fd == -1 || !buffer || len == 0) return -1;
     return recv(ctx->socket_fd, buffer, len, 0);
 }
 
 // Non-blocking receive with timeout (in milliseconds)
 int net_receive_nonblocking(ClientContext* ctx, char* buffer, size_t len, int timeout_ms) {
-    if (!ctx || ctx->socket_fd == -1) return -1;
+    if (!ctx || ctx->socket_fd == -1 || !buffer || len == 0) return -1;
     
     fd_set read_fds;
     FD_ZERO(&read_fds);
@@ -98,6 +116,12 @@ int net_receive_nonblocking(ClientContext* ctx, char* buffer, size_t len, int ti
             // Connection closed by server
             ctx->connected = false;
             return -2;
+        } else {
+            // Error occurred
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                ctx->connected = false;
+                return -2;
+            }
         }
     }
     return 0; // No data available or timeout

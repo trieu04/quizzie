@@ -1,9 +1,69 @@
 #include "../include/room.h"
 #include "../include/storage.h"
 #include "../include/net.h"
-#include <dirent.h>
 #include <time.h>
 #include <stdio.h>
+
+// Check and update room states based on time
+void room_check_timers(ServerContext* ctx) {
+    time_t now = time(NULL);
+    
+    for (int i = 0; i < ctx->room_count; i++) {
+        Room* room = &ctx->rooms[i];
+        
+        // WAITING → STARTED: Only if start_time is set AND reached
+        // (if start_time = 0, admin must manually start with START_GAME)
+        if (room->state == QUIZ_STATE_WAITING) {
+            if (room->start_time > 0 && now >= room->start_time) {
+                room->state = QUIZ_STATE_STARTED;
+                
+                // Notify host
+                if (room->host_sock >= 0) {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "QUIZ_AUTO_STARTED:%d", room->id);
+                    net_send_to_client(room->host_sock, msg, strlen(msg));
+                }
+                
+                // Notify all participants that quiz is now available
+                for (int j = 0; j < room->client_count; j++) {
+                    if (room->clients[j]) {
+                        char start_msg[64];
+                        snprintf(start_msg, sizeof(start_msg), "QUIZ_AVAILABLE:%d", room->quiz_duration);
+                        net_send_to_client(room->clients[j]->sock, start_msg, strlen(start_msg));
+                    }
+                }
+                
+                // Log
+                storage_log_with_timestamp("QUIZ_AUTO_START room_id=%d", room->id);
+            }
+        }
+        
+        // STARTED → FINISHED: Check if end_time reached
+        else if (room->state == QUIZ_STATE_STARTED) {
+            if (room->end_time > 0 && now >= room->end_time) {
+                room->state = QUIZ_STATE_FINISHED;
+                
+                // Notify host
+                if (room->host_sock >= 0) {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "QUIZ_AUTO_FINISHED:%d", room->id);
+                    net_send_to_client(room->host_sock, msg, strlen(msg));
+                }
+                
+                // Force submit for participants who haven't submitted
+                for (int j = 0; j < room->client_count; j++) {
+                    if (room->clients[j] && room->clients[j]->is_taking_quiz && !room->clients[j]->has_submitted) {
+                        net_send_to_client(room->clients[j]->sock, "TIME_UP:Quiz time expired", 25);
+                        // Auto-submit with current answers
+                        room_submit_answers(ctx, room->clients[j]->sock, room->clients[j]->answers);
+                    }
+                }
+                
+                storage_log_with_timestamp("QUIZ_AUTO_FINISH room_id=%d", room->id);
+            }
+        }
+    }
+}
 
 // Helper function to find a client by socket in a room
 static Client* find_client_in_room(Room* room, int sock) {
@@ -52,18 +112,25 @@ static Room* find_room_by_client(ServerContext* ctx, int sock) {
 // List all rooms
 void room_list(ServerContext* ctx, int client_sock) {
     char response[BUFFER_SIZE] = "ROOM_LIST:";
-    int first = 1;
+    size_t offset = strlen(response);
     
     for (int i = 0; i < ctx->room_count; i++) {
         Room* room = &ctx->rooms[i];
-        if (!first) strcat(response, ";");
+        if (i > 0 && offset < BUFFER_SIZE - 1) {
+            response[offset++] = ';';
+            response[offset] = '\0';
+        }
         
         char room_info[64];
         int participant_count = room->client_count;
-        sprintf(room_info, "%d,%s,%d,%d", room->id, room->host_username, 
-                participant_count, room->state);
-        strcat(response, room_info);
-        first = 0;
+        int written = snprintf(room_info, sizeof(room_info), "%d,%s,%d,%d", 
+                              room->id, room->host_username, participant_count, room->state);
+        
+        if (written > 0 && offset + (size_t)written < BUFFER_SIZE - 1) {
+            memcpy(response + offset, room_info, written);
+            offset += written;
+            response[offset] = '\0';
+        }
     }
     
     net_send_to_client(client_sock, response, strlen(response));
@@ -71,30 +138,29 @@ void room_list(ServerContext* ctx, int client_sock) {
 
 int room_create(ServerContext* ctx, int host_sock, const char* username, const char* config) {
     if (ctx->room_count >= MAX_ROOMS) {
-        net_send_to_client(host_sock, "ERROR:Max rooms reached", 23);
+        net_send_to_client(host_sock, "ERROR:Maximum number of rooms reached", 38);
         return -1;
     }
 
-    // Check if user already has a room - delete the old one first
-    Room* existing = room_find_by_host_username(ctx, username);
-    if (existing) {
-        room_delete(ctx, existing->id);
-    }
+    // Allow admin to create multiple rooms
+    // (removed auto-delete of existing room)
 
     Room* room = &ctx->rooms[ctx->room_count];
     room->id = ctx->next_room_id++;  // Use unique incremental ID
     room->host_sock = host_sock;
     strncpy(room->host_username, username, sizeof(room->host_username) - 1);
+    room->host_username[sizeof(room->host_username) - 1] = '\0';
     room->client_count = 0;  // Host is not counted as participant
-    room->state = QUIZ_STATE_STARTED; // Auto-start (time-based)
-    room->quiz_duration = 300;  // Default 5 minutes
-    strcpy(room->question_file, "exam_bank_programming.csv");
+    room->state = QUIZ_STATE_WAITING; // Start in WAITING state
+    room->quiz_duration = DEFAULT_QUIZ_DURATION;
+    strncpy(room->question_file, "exam_bank_programming.csv", sizeof(room->question_file) - 1);
+    room->question_file[sizeof(room->question_file) - 1] = '\0';
     room->start_time = 0;
     room->end_time = 0;
     room->randomize_answers = false;
     
     // Parse config
-    // New format: duration|start_time|end_time|filename|easy|med|hard|any|rand_ans
+    // New format: duration|start_time|end_time|filename|easy|med|hard|rand_ans
     // Legacy formats: "duration,filename" or "subject,duration" etc.
     
     bool loaded = false;
@@ -117,17 +183,16 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
         token = strtok(NULL, "|");
         if (token) strncpy(room->question_file, token, sizeof(room->question_file) - 1);
 
-        int easy=0, med=0, hard=0, any=0;
+int easy=0, med=0, hard=0;
         token = strtok(NULL, "|"); if (token) easy = atoi(token);
         token = strtok(NULL, "|"); if (token) med = atoi(token);
         token = strtok(NULL, "|"); if (token) hard = atoi(token);
-        token = strtok(NULL, "|"); if (token) any = atoi(token);
         
         token = strtok(NULL, "|"); 
         if (token) room->randomize_answers = (atoi(token) != 0);
         
         // Load questions
-        if (storage_load_filtered_questions(room->question_file, easy, med, hard, any, 
+        if (storage_load_filtered_questions(room->question_file, easy, med, hard, 
                                             room->randomize_answers, room->questions, room->correct_answers) == 0) {
             loaded = true;
         }
@@ -194,12 +259,14 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
         return -1;
     }
 
-    // Count total questions from correct_answers
+    // Count total questions from correct_answers (comma-separated: A,B,C,D)
     int total_q = 0;
-    if (strlen(room->correct_answers) > 0) {
-        total_q = 1;
-        for (const char* p = room->correct_answers; *p; p++) {
-             if (*p == ',') total_q++;
+    const char* p = room->correct_answers;
+    if (*p) {
+        total_q = 1;  // At least one question if string is not empty
+        while (*p) {
+            if (*p == ',') total_q++;
+            p++;
         }
     }
 
@@ -224,7 +291,7 @@ int room_create(ServerContext* ctx, int host_sock, const char* username, const c
 int room_rejoin_as_host(ServerContext* ctx, int client_sock, const char* username) {
     Room* room = room_find_by_host_username(ctx, username);
     if (!room) {
-        net_send_to_client(client_sock, "ERROR:No room found for this user", 33);
+        net_send_to_client(client_sock, "ERROR:No active room found for this account", 44);
         return -1;
     }
     
@@ -233,6 +300,7 @@ int room_rejoin_as_host(ServerContext* ctx, int client_sock, const char* usernam
     Client* client = find_client(ctx, client_sock);
     if (client) {
         strncpy(client->username, username, sizeof(client->username) - 1);
+        client->username[sizeof(client->username) - 1] = '\0';
     }
     
     char response[64];
@@ -319,8 +387,21 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
         if (ctx->rooms[i].id == room_id) {
             Room* room = &ctx->rooms[i];
             
+            // Check if quiz has already finished
+            if (room->state == QUIZ_STATE_FINISHED) {
+                net_send_to_client(client_sock, "ERROR:Quiz has already finished", 31);
+                return -1;
+            }
+            
+            // Check if end time has passed (even if state hasn't updated yet)
+            time_t now = time(NULL);
+            if (room->end_time > 0 && now > room->end_time) {
+                net_send_to_client(client_sock, "ERROR:Quiz has ended", 20);
+                return -1;
+            }
+            
             if (room->client_count >= MAX_CLIENTS) {
-                net_send_to_client(client_sock, "ERROR:Room is full", 18);
+                net_send_to_client(client_sock, "ERROR:Room is full (maximum participants reached)", 50);
                 return -1;
             }
 
@@ -338,6 +419,7 @@ int room_join(ServerContext* ctx, int client_sock, int room_id, const char* user
                 }
                 
                 strncpy(client->username, username, sizeof(client->username) - 1);
+                client->username[sizeof(client->username) - 1] = '\0';
                 client->is_taking_quiz = false;
                 client->has_submitted = false;
                 client->quiz_start_time = 0;
@@ -381,6 +463,16 @@ int room_start_quiz(ServerContext* ctx, int host_sock) {
     for (int i = 0; i < ctx->room_count; i++) {
         if (ctx->rooms[i].host_sock == host_sock) {
             Room* room = &ctx->rooms[i];
+            
+            // Check if can start now (respect start_time)
+            time_t now = time(NULL);
+            if (room->start_time > 0 && now < room->start_time) {
+                char err[128];
+                snprintf(err, sizeof(err), "ERROR:Cannot start yet. Scheduled for %ld", room->start_time);
+                net_send_to_client(host_sock, err, strlen(err));
+                return -1;
+            }
+            
             room->state = QUIZ_STATE_STARTED;
             
             LOG_INFO("Starting quiz for room");
@@ -398,16 +490,15 @@ int room_start_quiz(ServerContext* ctx, int host_sock) {
             char response[32];
             snprintf(response, sizeof(response), "QUIZ_STARTED:%d", room->client_count);
             net_send_to_client(host_sock, response, strlen(response));
-
-                // Log start
-                char log_entry[256];
-                time_t now = time(NULL);
-                struct tm* tm_info = localtime(&now);
-                char ts[64];
-                strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
-                snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_START room_id=%d host=%s clients=%d duration=%d", 
-                         ts, room->id, room->host_username, room->client_count, room->quiz_duration);
-                storage_save_log(log_entry);
+            
+            // Log start
+            char log_entry[256];
+            struct tm* tm_info = localtime(&now);
+            char ts[64];
+            strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+            snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_START room_id=%d host=%s clients=%d duration=%d", 
+                     ts, room->id, room->host_username, room->client_count, room->quiz_duration);
+            storage_save_log(log_entry);
             
             return 0;
         }
@@ -455,13 +546,15 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
     
     // Send questions to this client
     char response[BUFFER_SIZE];
-    snprintf(response, sizeof(response), "QUESTIONS:%d;%s", room->quiz_duration, room->questions);
-    net_send_to_client(client_sock, response, strlen(response));
+    int resp_len = snprintf(response, sizeof(response), "QUESTIONS:%d;%.32700s", room->quiz_duration, room->questions);
+    if (resp_len > 0 && (size_t)resp_len < sizeof(response)) {
+        net_send_to_client(client_sock, response, strlen(response));
+    }
     
     // If client has saved answers (reconnect scenario), send them
     if (strlen(client->answers) > 0) {
         char ans_msg[128];
-        snprintf(ans_msg, sizeof(ans_msg), "ANSWERS:%s,%d", client->answers, client->current_question);
+        snprintf(ans_msg, sizeof(ans_msg), "ANSWERS:%.100s,%d", client->answers, client->current_question);
         net_send_to_client(client_sock, ans_msg, strlen(ans_msg));
     }
     
@@ -471,16 +564,16 @@ int room_client_start_quiz(ServerContext* ctx, int client_sock) {
     net_send_to_client(room->host_sock, notify, strlen(notify));
     
     LOG_INFO("Client started quiz");
-
-        // Log participant start
-        char log_entry[256];
-        time_t now = time(NULL);
-        struct tm* tm_info = localtime(&now);
-        char ts[64];
-        strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
-        snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_TAKE_START room_id=%d user=%s", 
-                 ts, room->id, client->username);
-        storage_save_log(log_entry);
+    
+    // Log participant start
+    char log_entry[256];
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    char ts[64];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+    snprintf(log_entry, sizeof(log_entry), "[%s] QUIZ_TAKE_START room_id=%d user=%s", 
+             ts, room->id, client->username);
+    storage_save_log(log_entry);
     return 0;
 }
 
@@ -512,6 +605,7 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
             int last_percent = 0;
             
             char participants[BUFFER_SIZE] = "";
+            size_t part_offset = 0;
             
             for (int j = 0; j < room->client_count; j++) {
                 if (room->clients[j]) {
@@ -522,10 +616,15 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                         submitted_count++;
                         // Add submitted participant info
                         char info[128];
-                        snprintf(info, sizeof(info), "%s%s:S:%d/%d", 
-                            strlen(participants) > 0 ? "," : "",
+                        int written = snprintf(info, sizeof(info), "%s%s:S:%d/%d", 
+                            part_offset > 0 ? "," : "",
                             c->username, c->score, c->total);
-                        strcat(participants, info);
+                        
+                        if (written > 0 && part_offset + (size_t)written < BUFFER_SIZE - 1) {
+                            memcpy(participants + part_offset, info, written);
+                            part_offset += written;
+                            participants[part_offset] = '\0';
+                        }
 
                         int percent = (c->total > 0) ? (c->score * 100 / c->total) : 0;
                         sum_percent += percent;
@@ -539,29 +638,39 @@ int room_get_stats(ServerContext* ctx, int host_sock) {
                         if (remaining < 0 && room->quiz_duration > 0) remaining = 0;
                         
                         char info[128];
-                        snprintf(info, sizeof(info), "%s%s:T:%d", 
-                            strlen(participants) > 0 ? "," : "",
+                        int written = snprintf(info, sizeof(info), "%s%s:T:%d", 
+                            part_offset > 0 ? "," : "",
                             c->username, remaining);
-                        strcat(participants, info);
+                        
+                        if (written > 0 && part_offset + (size_t)written < BUFFER_SIZE - 1) {
+                            memcpy(participants + part_offset, info, written);
+                            part_offset += written;
+                            participants[part_offset] = '\0';
+                        }
                     } else {
                         waiting++;
                         // Add waiting participant info
                         char info[128];
-                        snprintf(info, sizeof(info), "%s%s:W:0", 
-                            strlen(participants) > 0 ? "," : "",
+                        int written = snprintf(info, sizeof(info), "%s%s:W:0", 
+                            part_offset > 0 ? "," : "",
                             c->username);
-                        strcat(participants, info);
+                        
+                        if (written > 0 && part_offset + (size_t)written < BUFFER_SIZE - 1) {
+                            memcpy(participants + part_offset, info, written);
+                            part_offset += written;
+                            participants[part_offset] = '\0';
+                        }
                     }
                 }
             }
             
             int avg_percent = submitted_count > 0 ? sum_percent / submitted_count : 0;
-            snprintf(response, sizeof(response), "ROOM_STATS:%d,%d,%d;%s;avg=%d,best=%d,last=%d", 
+            int resp_len = snprintf(response, sizeof(response), "ROOM_STATS:%d,%d,%d;%.32700s;avg=%d,best=%d,last=%d", 
                      waiting, taking, submitted, participants, avg_percent, best_percent, last_percent);
-            net_send_to_client(host_sock, response, strlen(response));
+            if (resp_len > 0 && (size_t)resp_len < sizeof(response)) {
+                net_send_to_client(host_sock, response, strlen(response));
+            }
             return 0;
-    
-    return -1;
 }
 
 int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers) {
@@ -584,11 +693,15 @@ int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers
     const char* correct = room->correct_answers;
     const char* submitted = answers;
 
-    // Count total questions from correct answers (comma-separated)
-    for (const char* p = correct; *p; p++) {
-        if (*p == ',' || *(p + 1) == '\0') total++;
+    // Count total questions from correct answers (comma-separated: A,B,C,D)
+    const char* p = correct;
+    if (*p) {
+        total = 1;  // At least one question if string is not empty
+        while (*p) {
+            if (*p == ',') total++;
+            p++;
+        }
     }
-    if (total == 0) total = 1;
 
     // Compare answers
     int idx = 0;
@@ -658,15 +771,15 @@ int room_delete(ServerContext* ctx, int room_id) {
             ctx->room_count--;
             
             LOG_INFO("Room deleted");
-
-                // Log room deletion
-                char log_entry[256];
-                time_t now = time(NULL);
-                struct tm* tm_info = localtime(&now);
-                char ts[64];
-                strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
-                snprintf(log_entry, sizeof(log_entry), "[%s] ROOM_DELETED id=%d", ts, room_id);
-                storage_save_log(log_entry);
+            
+            // Log room deletion
+            char log_entry[256];
+            time_t now = time(NULL);
+            struct tm* tm_info = localtime(&now);
+            char ts[64];
+            strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+            snprintf(log_entry, sizeof(log_entry), "[%s] ROOM_DELETED id=%d", ts, room_id);
+            storage_save_log(log_entry);
             return 0;
         }
     }

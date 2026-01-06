@@ -1,5 +1,5 @@
-#include "server.h"
-#include "storage.h"
+#include "include/server.h"
+#include "include/storage.h"
 
 int main() {
     ServerContext* ctx = server_init();
@@ -9,7 +9,9 @@ int main() {
     }
 
     // Load preserved state if available
-    storage_load_server_state(ctx);
+    if (storage_load_server_state(ctx) == 0) {
+        LOG_INFO("Server state restored from previous session");
+    }
 
     server_run(ctx);
     server_cleanup(ctx);

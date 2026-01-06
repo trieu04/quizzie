@@ -24,6 +24,9 @@ static void on_register_clicked(GtkWidget *widget, gpointer data) {
 	(void)widget;
 	ClientContext* ctx = (ClientContext*)data;
 
+	// Clear previous status message on new registration attempt
+	ctx->status_message[0] = '\0';
+
 	const char* server = gtk_entry_get_text(GTK_ENTRY(server_entry));
 	const char* port_str = gtk_entry_get_text(GTK_ENTRY(port_entry));
 	const char* username = gtk_entry_get_text(GTK_ENTRY(username_entry));
@@ -32,30 +35,46 @@ static void on_register_clicked(GtkWidget *widget, gpointer data) {
 
 	if (strlen(server) == 0 || strlen(port_str) == 0) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Server and port cannot be empty!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
 
 	if (strlen(username) == 0 || strlen(password) == 0) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Username and password cannot be empty!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
 
 	if (strlen(username) < 3) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Username must be at least 3 characters!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
+	}
+	
+	// Validate username contains only alphanumeric and underscore
+	for (size_t i = 0; i < strlen(username); i++) {
+		char c = username[i];
+		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) {
+			gtk_label_set_text(GTK_LABEL(status_label), "Username can only contain letters, numbers and underscore!");
+			gtk_widget_set_name(status_label, "error-label");
+			gtk_widget_show(status_label);
+			return;
+		}
 	}
 
 	if (strlen(password) < 6) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Password must be at least 6 characters!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
 
 	if (strcmp(password, confirm_password) != 0) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Passwords do not match!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
@@ -63,6 +82,7 @@ static void on_register_clicked(GtkWidget *widget, gpointer data) {
 	int port = atoi(port_str);
 	if (port <= 0 || port > 65535) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Invalid port number!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
@@ -74,9 +94,11 @@ static void on_register_clicked(GtkWidget *widget, gpointer data) {
 
 	if (!ctx->connected) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Connecting to server...");
+		gtk_widget_set_name(status_label, "info-label");
 		gtk_widget_show(status_label);
 		if (net_connect(ctx, ctx->server_ip, ctx->server_port) != 0) {
 			gtk_label_set_text(GTK_LABEL(status_label), "Failed to connect to server!");
+			gtk_widget_set_name(status_label, "error-label");
 			gtk_widget_show(status_label);
 			return;
 		}
@@ -86,6 +108,7 @@ static void on_register_clicked(GtkWidget *widget, gpointer data) {
 	snprintf(msg, sizeof(msg), "%s,%s", username, password);
 	client_send_message(ctx, "REGISTER", msg);
 	gtk_label_set_text(GTK_LABEL(status_label), "Registering...");
+	gtk_widget_set_name(status_label, "info-label");
 	gtk_widget_show(status_label);
 }
 
@@ -117,14 +140,12 @@ GtkWidget* page_register_create(ClientContext* ctx) {
 	gtk_widget_set_margin_top(header, 25);
 	gtk_widget_set_margin_bottom(header, 20);
 
-	GtkWidget *title = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(title), "<span size='30000' weight='bold' foreground='#1c2430'>Create Account</span>");
-	gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
+	GtkWidget *title = gtk_label_new("Create Account");
+	gtk_style_context_add_class(gtk_widget_get_style_context(title), "page-title");
 	gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 0);
 
-	GtkWidget *subtitle = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(subtitle), "<span size='large' foreground='#5b6472'>Join the Quiz Community</span>");
-	gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "header-subtitle");
+	GtkWidget *subtitle = gtk_label_new("Join the Quiz Community");
+	gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "page-subtitle");
 	gtk_box_pack_start(GTK_BOX(header), subtitle, FALSE, FALSE, 0);
 
 	gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
@@ -295,8 +316,24 @@ void page_register_update(ClientContext* ctx) {
 		gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
 		gtk_widget_set_no_show_all(status_label, FALSE);
 		gtk_widget_show(status_label);
-		// Clear status message after displaying
-		ctx->status_message[0] = '\0';
+		
+		// Add color styling based on message type
+		const char* msg = ctx->status_message;
+		if (strstr(msg, "failed") || strstr(msg, "Failed") || strstr(msg, "error") || 
+		    strstr(msg, "Error") || strstr(msg, "Invalid") || strstr(msg, "cannot") ||
+		    strstr(msg, "already exists") || strstr(msg, "do not match") ||
+		    strstr(msg, "must be at least") || strstr(msg, "required") || 
+		    strstr(msg, "not found") || strstr(msg, "Maximum")) {
+			// Error message - red
+			gtk_widget_set_name(status_label, "error-label");
+		} else if (strstr(msg, "success") || strstr(msg, "Success") || strstr(msg, "successful")) {
+			// Success message - green
+			gtk_widget_set_name(status_label, "success-label");
+		} else {
+			// Info message - default
+			gtk_widget_set_name(status_label, "info-label");
+		}
+		// Don't clear message here - let it persist until user takes new action
 	} else if (status_label && ctx->status_message[0] == '\0') {
 		gtk_widget_hide(status_label);
 	}

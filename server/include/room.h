@@ -6,6 +6,7 @@
 // Function prototypes
 int room_create(ServerContext* ctx, int host_sock, const char* username, const char* config);
 int room_join(ServerContext* ctx, int client_sock, int room_id, const char* username);
+void room_check_timers(ServerContext* ctx);
 int room_start_quiz(ServerContext* ctx, int host_sock);
 int room_submit_answers(ServerContext* ctx, int client_sock, const char* answers);
 int room_get_stats(ServerContext* ctx, int host_sock);

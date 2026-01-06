@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-static GtkWidget *status_label = NULL;
 static GtkWidget *state_label = NULL;
 static GtkWidget *participant_list_box = NULL;
 static GtkWidget *stats_label = NULL;
@@ -90,10 +89,6 @@ static void on_refresh_stats_clicked(GtkWidget *widget, gpointer data) {
     
     if (ctx->connected) {
         client_send_message(ctx, "GET_STATS", "");
-        strcpy(ctx->status_message, "Refreshing stats...");
-        if (status_label) {
-            gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        }
         last_stats_request = time(NULL);
     }
 }
@@ -143,7 +138,6 @@ static void on_delete_room_clicked(GtkWidget *widget, gpointer data) {
 }
 
 GtkWidget* page_host_panel_create(ClientContext* ctx) {
-    status_label = NULL;
     state_label = NULL;
     participant_list_box = NULL;
     stats_label = NULL;
@@ -172,8 +166,8 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     GtkWidget *room_label = gtk_label_new(room_text);
     gtk_box_pack_start(GTK_BOX(sidebar), room_label, FALSE, FALSE, 0);
     
-    char host_text[64];
-    snprintf(host_text, sizeof(host_text), "Host: %s", ctx->username);
+    char host_text[80];
+    snprintf(host_text, sizeof(host_text), "Host: %.63s", ctx->username);
     GtkWidget *host_label = gtk_label_new(host_text);
     gtk_box_pack_start(GTK_BOX(sidebar), host_label, FALSE, FALSE, 0);
     
@@ -225,10 +219,6 @@ GtkWidget* page_host_panel_create(ClientContext* ctx) {
     gtk_widget_set_margin_top(main_area, 20);
     gtk_widget_set_margin_bottom(main_area, 20);
     gtk_style_context_add_class(gtk_widget_get_style_context(main_area), "card");
-    
-    status_label = gtk_label_new(ctx->status_message);
-    gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
-    gtk_box_pack_start(GTK_BOX(main_area), status_label, FALSE, FALSE, 0);
     
     GtkWidget *stats_title = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(stats_title), "<span size='large' weight='bold'>PARTICIPANTS STATISTICS</span>");
@@ -305,10 +295,6 @@ void page_host_panel_update(ClientContext* ctx) {
         snprintf(avg_detail, sizeof(avg_detail), "Avg: %d%% | Best: %d%% | Last: %d%%",
                  ctx->stats_avg_percent, ctx->stats_best_percent, ctx->stats_last_percent);
         gtk_label_set_text(GTK_LABEL(avg_detail_label), avg_detail);
-    }
-    
-    if (status_label && strlen(ctx->status_message) > 0) {
-        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
     }
 }
 

@@ -29,11 +29,13 @@ ClientContext* client_init() {
     ctx->stats_avg_percent = 0;
     ctx->stats_best_percent = 0;
     ctx->stats_last_percent = 0;
-    strcpy(ctx->question_file, "questions.txt");
+    strncpy(ctx->question_file, "questions.txt", sizeof(ctx->question_file) - 1);
+    ctx->question_file[sizeof(ctx->question_file) - 1] = '\0';
     memset(ctx->answers, 0, sizeof(ctx->answers));
-    strcpy(ctx->status_message, "");
+    ctx->status_message[0] = '\0';  // Already memset, this is redundant but explicit
     // Initialize server connection with defaults
-    strcpy(ctx->server_ip, "127.0.0.1");
+    strncpy(ctx->server_ip, "127.0.0.1", sizeof(ctx->server_ip) - 1);
+    ctx->server_ip[sizeof(ctx->server_ip) - 1] = '\0';
     ctx->server_port = 8080;
     return ctx;
 }
@@ -139,10 +141,11 @@ static void parse_questions(ClientContext* ctx, const char* data) {
         else {
             // No options embedded, just question text
             strncpy(q->question, question_token, sizeof(q->question) - 1);
-            strcpy(q->options[0], "A");
-            strcpy(q->options[1], "B");
-            strcpy(q->options[2], "C");
-            strcpy(q->options[3], "D");
+            q->question[sizeof(q->question) - 1] = '\0';
+            strncpy(q->options[0], "A", sizeof(q->options[0]) - 1);
+            strncpy(q->options[1], "B", sizeof(q->options[1]) - 1);
+            strncpy(q->options[2], "C", sizeof(q->options[2]) - 1);
+            strncpy(q->options[3], "D", sizeof(q->options[3]) - 1);
         }
 
         ctx->question_count++;
@@ -200,14 +203,15 @@ static void parse_room_stats(ClientContext* ctx, const char* data) {
     strncpy(buffer, data, BUFFER_SIZE - 1);
     buffer[BUFFER_SIZE - 1] = '\0';
     
-    // Parse summary
+    // Parse summary (find first semicolon)
+    char* participants = NULL;
+    char* agg_section = NULL;
     char* first = strchr(buffer, ';');
     if (first) {
         *first = '\0';
         sscanf(buffer, "%d,%d,%d", &ctx->stats_waiting, &ctx->stats_taking, &ctx->stats_submitted);
 
-        char* participants = first + 1;
-        char* agg_section = NULL;
+        participants = first + 1;
         char* second = strchr(participants, ';');
         if (second) {
             *second = '\0';
@@ -381,22 +385,28 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
     }
     else if (strcmp(type, "CONFIG_UPDATED") == 0) {
         // Format: duration,filename
+        char data_copy[256];
+        strncpy(data_copy, data, sizeof(data_copy) - 1);
+        data_copy[sizeof(data_copy) - 1] = '\0';
+        
         char filename[64] = "";
         int duration = 300;
-        char* comma = strchr(data, ',');
+        char* comma = strchr(data_copy, ',');
         if (comma) {
             *comma = '\0';
-            duration = atoi(data);
+            duration = atoi(data_copy);
             strncpy(filename, comma + 1, sizeof(filename) - 1);
+            filename[sizeof(filename) - 1] = '\0';
         } else {
-            duration = atoi(data);
+            duration = atoi(data_copy);
         }
         ctx->quiz_duration = duration;
         if (strlen(filename) > 0) {
             strncpy(ctx->question_file, filename, sizeof(ctx->question_file) - 1);
+            ctx->question_file[sizeof(ctx->question_file) - 1] = '\0';
         }
         snprintf(ctx->status_message, sizeof(ctx->status_message),
-            "Config updated: %ds, %s", ctx->quiz_duration, ctx->question_file);
+            "Config updated: %ds, %.90s", ctx->quiz_duration, ctx->question_file);
     }
     else if (strcmp(type, "PARTICIPANT_JOINED") == 0) {
         set_status_with_data(ctx, "New participant: ", data);
@@ -418,19 +428,24 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
     }
     else if (strcmp(type, "RESULT") == 0) {
         // Format: SCORE/TOTAL,time_taken
+        char data_copy[256];
+        strncpy(data_copy, data, sizeof(data_copy) - 1);
+        data_copy[sizeof(data_copy) - 1] = '\0';
+        
         int time_taken = 0;
-        char* comma = strchr(data, ',');
+        char* comma = strchr(data_copy, ',');
         if (comma) {
             *comma = '\0';
             time_taken = atoi(comma + 1);
         }
-        sscanf(data, "%d/%d", &ctx->score, &ctx->total_questions);
+        sscanf(data_copy, "%d/%d", &ctx->score, &ctx->total_questions);
         ctx->time_taken = time_taken;
         ctx->current_state = PAGE_RESULT;
     }
     else if (strcmp(type, "LOGIN_SUCCESS") == 0) {
         // Parse role from data (0=participant, 1=admin)
         ctx->role = atoi(data);
+        ctx->force_page_refresh = false;  // Clear any previous force refresh flag
         if (ctx->role == 1) {
             ctx->current_state = PAGE_ADMIN_PANEL;
             snprintf(ctx->status_message, sizeof(ctx->status_message), "Admin logged in!");
@@ -440,34 +455,57 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         }
     }
     else if (strcmp(type, "LOGIN_FAILED") == 0) {
-        set_status_with_data(ctx, "Login failed: ", data);
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "%.120s", data);
+        // Disconnect on login failure to prevent showing 'connected' status
+        net_close(ctx);
+        ctx->connected = false;
+        ctx->current_state = PAGE_LOGIN;
+        ctx->force_page_refresh = true;  // Force refresh to show error message
+    }
+    else if (strcmp(type, "FORCE_LOGOUT") == 0) {
+        // Another user logged in with same account - force logout
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "%.120s", data);
+        net_close(ctx);
+        ctx->connected = false;
+        ctx->current_state = PAGE_LOGIN;
+        ctx->force_page_refresh = true;  // Force refresh to show login page with message
     }
     else if (strcmp(type, "REGISTER_SUCCESS") == 0) {
+        ctx->force_page_refresh = false;  // Clear any previous force refresh flag
         snprintf(ctx->status_message, sizeof(ctx->status_message), "Registration successful! You can now login.");
     }
     else if (strcmp(type, "REGISTER_FAILED") == 0) {
-        set_status_with_data(ctx, "Registration failed: ", data);
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "%.120s", data);
+        // Disconnect on registration failure to prevent showing 'connected' status
+        net_close(ctx);
+        ctx->connected = false;
+        ctx->current_state = PAGE_REGISTER;
+        ctx->force_page_refresh = true;  // Force refresh to show error message
     }
     else if (strcmp(type, "UPLOAD_SUCCESS") == 0) {
         snprintf(ctx->status_message, sizeof(ctx->status_message), "CSV uploaded successfully!");
     }
     else if (strcmp(type, "UPLOAD_FAILED") == 0) {
-        set_status_with_data(ctx, "Upload failed: ", data);
+        snprintf(ctx->status_message, sizeof(ctx->status_message), "%.120s", data);
     }
     else if (strcmp(type, "ANSWERS") == 0) {
         // Format: ANSWERS:answer_string,current_question
+        char data_copy[BUFFER_SIZE];
+        strncpy(data_copy, data, sizeof(data_copy) - 1);
+        data_copy[sizeof(data_copy) - 1] = '\0';
+        
         char ans_str[MAX_QUESTIONS + 1] = {0};
         int cur_q = 0;
-        char* comma = strchr(data, ',');
+        char* comma = strchr(data_copy, ',');
         if (comma) {
-            size_t len = comma - data;
+            size_t len = comma - data_copy;
             if (len < sizeof(ans_str)) {
-                strncpy(ans_str, data, len);
+                strncpy(ans_str, data_copy, len);
                 ans_str[len] = '\0';
                 cur_q = atoi(comma + 1);
             }
         } else {
-            strncpy(ans_str, data, sizeof(ans_str) - 1);
+            strncpy(ans_str, data_copy, sizeof(ans_str) - 1);
         }
         
         // Restore answers
@@ -483,17 +521,22 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
     }
     else if (strcmp(type, "PRACTICE_QUESTIONS") == 0) {
         // Format: PRACTICE_QUESTIONS:questions_string,answers_string
+        char data_copy[BUFFER_SIZE];
+        strncpy(data_copy, data, sizeof(data_copy) - 1);
+        data_copy[sizeof(data_copy) - 1] = '\0';
+        
         char q_str[BUFFER_SIZE] = {0};
         char ans_str[MAX_QUESTIONS + 1] = {0};
         
-        char* comma = strchr(data, ',');
+        char* comma = strchr(data_copy, ',');
         if (comma) {
-            size_t q_len = comma - data;
+            size_t q_len = comma - data_copy;
             if (q_len < sizeof(q_str)) {
-                strncpy(q_str, data, q_len);
+                strncpy(q_str, data_copy, q_len);
                 q_str[q_len] = '\0';
             }
             strncpy(ans_str, comma + 1, sizeof(ans_str) - 1);
+            ans_str[sizeof(ans_str) - 1] = '\0';
         }
         
         // Parse questions string (same format as QUESTIONS)
@@ -587,6 +630,45 @@ void client_process_server_message(ClientContext* ctx, const char* message) {
         
         ctx->files_refreshed = true;
     }
+    else if (strcmp(type, "PRACTICE_SUBJECTS") == 0) {
+        // Format: PRACTICE_SUBJECTS:subject1|e,m,h;subject2|e,m,h...
+        strncpy(ctx->practice_subjects, data, sizeof(ctx->practice_subjects) - 1);
+        ctx->practice_subjects[sizeof(ctx->practice_subjects) - 1] = '\0';
+        
+        // Parse into list
+        ctx->practice_subjects_count = 0;
+        char buf[1024];
+        strncpy(buf, data, sizeof(buf)-1);
+        buf[sizeof(buf)-1] = '\0';
+        
+        // Split by semicolon for each subject
+        char* subject_token = strtok(buf, ";");
+        while (subject_token && ctx->practice_subjects_count < 50) {
+            // Parse subject|easy,medium,hard
+            char* pipe = strchr(subject_token, '|');
+            if (pipe) {
+                *pipe = '\0';
+                char* stats = pipe + 1;
+                
+                // Copy subject name
+                strncpy(ctx->practice_subjects_list[ctx->practice_subjects_count].name, 
+                        subject_token, 63);
+                ctx->practice_subjects_list[ctx->practice_subjects_count].name[63] = '\0';
+                
+                // Parse e,m,h
+                int e=0, m=0, h=0;
+                sscanf(stats, "%d,%d,%d", &e, &m, &h);
+                ctx->practice_subjects_list[ctx->practice_subjects_count].easy_count = e;
+                ctx->practice_subjects_list[ctx->practice_subjects_count].medium_count = m;
+                ctx->practice_subjects_list[ctx->practice_subjects_count].hard_count = h;
+                
+                ctx->practice_subjects_count++;
+            }
+            subject_token = strtok(NULL, ";");
+        }
+        
+        ctx->subjects_refreshed = true;
+    }
 }
 
 // Receive and process any pending messages from server
@@ -638,7 +720,8 @@ int client_receive_message(ClientContext* ctx) {
     }
     else if (result == -2) {
         // Connection closed
-        strcpy(ctx->status_message, "Disconnected from server!");
+        snprintf(ctx->status_message, sizeof(ctx->status_message), 
+                 "Username or Password is Wrong!");
         ctx->connected = false;
         return -1;
     }

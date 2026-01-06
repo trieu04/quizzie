@@ -63,18 +63,17 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_widget_set_margin_top(header, 20);
     gtk_widget_set_margin_bottom(header, 20);
     
-    // Title with emoji
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold' foreground='#1c2430'>Participant Dashboard</span>");
-    gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
+    // Title
+    GtkWidget *title = gtk_label_new("Dashboard");
+    gtk_style_context_add_class(gtk_widget_get_style_context(title), "page-title");
     gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 5);
     
     // Welcome message
     GtkWidget *welcome_label = gtk_label_new(NULL);
     char welcome[128];
-    snprintf(welcome, sizeof(welcome), "<span size='large' foreground='#27ae60'>Welcome, <b>%s</b>!</span>", ctx->username);
-    gtk_label_set_markup(GTK_LABEL(welcome_label), welcome);
-    gtk_style_context_add_class(gtk_widget_get_style_context(welcome_label), "header-subtitle");
+    snprintf(welcome, sizeof(welcome), "Welcome back, %s!", ctx->username);
+    gtk_label_set_text(GTK_LABEL(welcome_label), welcome);
+    gtk_style_context_add_class(gtk_widget_get_style_context(welcome_label), "page-subtitle");
     gtk_box_pack_start(GTK_BOX(header), welcome_label, FALSE, FALSE, 0);
     
     // Connection status
@@ -108,7 +107,7 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // Practice Mode Section
     GtkWidget *practice_frame = gtk_frame_new(NULL);
     GtkWidget *practice_header = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(practice_header), "<b>[*] Practice Mode</b>");
+    gtk_label_set_markup(GTK_LABEL(practice_header), "<b>Practice Mode</b>");
     gtk_frame_set_label_widget(GTK_FRAME(practice_frame), practice_header);
     gtk_frame_set_shadow_type(GTK_FRAME(practice_frame), GTK_SHADOW_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(practice_frame), "card");
@@ -120,11 +119,12 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_widget_set_margin_bottom(practice_box, 15);
 
     GtkWidget *practice_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(practice_text), "Practice with local banks offline.");
+    gtk_label_set_markup(GTK_LABEL(practice_text), "<i>Practice offline with unlimited time. View correct answers after completion. No score tracking.</i>");
     gtk_label_set_line_wrap(GTK_LABEL(practice_text), TRUE);
+    gtk_widget_set_halign(practice_text, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(practice_box), practice_text, FALSE, FALSE, 0);
 
-    GtkWidget *practice_btn = gtk_button_new_with_label("Open Practice Page");
+    GtkWidget *practice_btn = gtk_button_new_with_label("Start Practice");
     gtk_widget_set_size_request(practice_btn, -1, 45);
     g_signal_connect(practice_btn, "clicked", G_CALLBACK(on_practice_page_clicked), ctx);
     gtk_style_context_add_class(gtk_widget_get_style_context(practice_btn), "btn-primary");
@@ -136,7 +136,7 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // Online Quiz Section
     GtkWidget *quiz_frame = gtk_frame_new(NULL);
     GtkWidget *quiz_header = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(quiz_header), "<b>[+] Online Quiz</b>");
+    gtk_label_set_markup(GTK_LABEL(quiz_header), "<b>Online Quiz Rooms</b>");
     gtk_frame_set_label_widget(GTK_FRAME(quiz_frame), quiz_header);
     gtk_frame_set_shadow_type(GTK_FRAME(quiz_frame), GTK_SHADOW_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(quiz_frame), "card");
@@ -147,7 +147,13 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_widget_set_margin_top(quiz_box, 15);
     gtk_widget_set_margin_bottom(quiz_box, 15);
     
-    GtkWidget *view_btn = gtk_button_new_with_label(">> Browse Quiz Rooms");
+    GtkWidget *quiz_desc = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(quiz_desc), "<i>Join timed quiz rooms created by admins. Compete with others and track your scores.</i>");
+    gtk_label_set_line_wrap(GTK_LABEL(quiz_desc), TRUE);
+    gtk_widget_set_halign(quiz_desc, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(quiz_box), quiz_desc, FALSE, FALSE, 0);
+    
+    GtkWidget *view_btn = gtk_button_new_with_label("Browse Quiz Rooms");
     gtk_widget_set_size_request(view_btn, -1, 45);
     g_signal_connect(view_btn, "clicked", G_CALLBACK(on_view_rooms_clicked), ctx);
     gtk_style_context_add_class(gtk_widget_get_style_context(view_btn), "btn-secondary");
@@ -155,7 +161,7 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     
     // Reconnect button (only show if have last_room_id)
     if (ctx->last_room_id > 0) {
-        GtkWidget *reconnect_btn = gtk_button_new_with_label("🔄 Reconnect to Last Room");
+        GtkWidget *reconnect_btn = gtk_button_new_with_label("Reconnect to Last Room");
         gtk_widget_set_size_request(reconnect_btn, -1, 45);
         g_signal_connect(reconnect_btn, "clicked", G_CALLBACK(on_reconnect_clicked), ctx);
         gtk_style_context_add_class(gtk_widget_get_style_context(reconnect_btn), "btn-primary");
@@ -168,7 +174,7 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     // History Section
     GtkWidget *history_frame = gtk_frame_new(NULL);
     GtkWidget *history_header = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(history_header), "<b>[📊] Test History</b>");
+    gtk_label_set_markup(GTK_LABEL(history_header), "<b>Test History</b>");
     gtk_frame_set_label_widget(GTK_FRAME(history_frame), history_header);
     gtk_frame_set_shadow_type(GTK_FRAME(history_frame), GTK_SHADOW_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(history_frame), "card");
@@ -180,8 +186,9 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_widget_set_margin_bottom(history_box, 15);
     
     GtkWidget *history_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(history_text), "View your test results history.");
+    gtk_label_set_markup(GTK_LABEL(history_text), "<i>Review your past quiz results and practice sessions.</i>");
     gtk_label_set_line_wrap(GTK_LABEL(history_text), TRUE);
+    gtk_widget_set_halign(history_text, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(history_box), history_text, FALSE, FALSE, 0);
     
     GtkWidget *history_btn = gtk_button_new_with_label("View History");
@@ -193,15 +200,25 @@ GtkWidget* page_dashboard_create(ClientContext* ctx) {
     gtk_container_add(GTK_CONTAINER(history_frame), history_box);
     gtk_box_pack_start(GTK_BOX(content), history_frame, FALSE, FALSE, 0);
     
-
-    
     gtk_box_pack_start(GTK_BOX(main_box), content, TRUE, TRUE, 0);
     
     return main_box;
 }
 
 void page_dashboard_update(ClientContext* ctx) {
-    if (status_label && strlen(ctx->status_message) > 0) {
+    if (status_label && ctx->status_message[0] != '\0') {
         gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        
+        // Add color styling based on message type
+        const char* msg = ctx->status_message;
+        if (strstr(msg, "failed") || strstr(msg, "Failed") || strstr(msg, "error") || 
+            strstr(msg, "Error") || strstr(msg, "Invalid") || strstr(msg, "cannot")) {
+            gtk_widget_set_name(status_label, "error-label");
+        } else if (strstr(msg, "success") || strstr(msg, "Success") || strstr(msg, "successful")) {
+            gtk_widget_set_name(status_label, "success-label");
+        } else {
+            gtk_widget_set_name(status_label, "info-label");
+        }
+        // Don't clear message here - let it persist until user takes new action
     }
 }

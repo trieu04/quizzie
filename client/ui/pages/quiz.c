@@ -128,12 +128,12 @@ static void update_question_display(ClientContext* ctx) {
     
     Question* q = &ctx->questions[ctx->current_question];
     
-    char q_text[512];
+    char q_text[600];
     char diff[16];
     strncpy(diff, q->difficulty, sizeof(diff) - 1);
     diff[sizeof(diff) - 1] = '\0';
     if (diff[0]) diff[0] = (char)toupper(diff[0]);
-    snprintf(q_text, sizeof(q_text), "Question %d (%s): %s", 
+    snprintf(q_text, sizeof(q_text), "Question %d (%s): %.500s", 
              ctx->current_question + 1, diff[0] ? diff : "Medium", q->question);
     gtk_label_set_text(GTK_LABEL(question_label), q_text);
     
@@ -143,7 +143,7 @@ static void update_question_display(ClientContext* ctx) {
         if (radio_buttons[i]) {
             char label[256];
             char opt = 'A' + i;
-            snprintf(label, sizeof(label), "%c. %s", opt, q->options[i]);
+            snprintf(label, sizeof(label), "%c. %.250s", opt, q->options[i]);
             gtk_button_set_label(GTK_BUTTON(radio_buttons[i]), label);
             
             gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio_buttons[i]), 
@@ -317,8 +317,8 @@ GtkWidget* page_quiz_create(ClientContext* ctx) {
     GtkWidget *room_label = gtk_label_new(room_text);
     gtk_box_pack_start(GTK_BOX(sidebar), room_label, FALSE, FALSE, 0);
     
-    char player_text[64];
-    snprintf(player_text, sizeof(player_text), "Player: %s", ctx->username);
+    char player_text[80];
+    snprintf(player_text, sizeof(player_text), "Player: %.63s", ctx->username);
     GtkWidget *player_label = gtk_label_new(player_text);
     gtk_box_pack_start(GTK_BOX(sidebar), player_label, FALSE, FALSE, 0);
     

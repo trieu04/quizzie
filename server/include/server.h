@@ -21,14 +21,14 @@ typedef enum {
 // Structs
 typedef struct {
     int sock;
-    char username[50];
+    char username[MAX_USERNAME_LEN];
     UserRole role;             // User role (admin or participant)
     time_t quiz_start_time;    // When this client started their quiz
     bool is_taking_quiz;       // Whether client is currently taking quiz
     bool has_submitted;        // Whether client has submitted answers
     int score;                 // Client's score
     int total;                 // Total questions
-    char answers[50];          // Current answers for resume (A-D or - per question)
+    char answers[MAX_QUESTIONS * 2];          // Current answers for resume (A-D or - per question)
     int current_question;      // Last viewed question index
     char recv_buffer[BUFFER_SIZE * 2];  // Buffer for incomplete messages
     int recv_len;              // Current buffer length
@@ -36,15 +36,15 @@ typedef struct {
 
 typedef struct {
     int id;
-    char host_username[50];    // Store host by username instead of socket
+    char host_username[MAX_USERNAME_LEN];    // Store host by username instead of socket
     int host_sock;             // Current host socket (can change on reconnect)
     Client *clients[MAX_CLIENTS];
     int client_count;
     char questions[BUFFER_SIZE];
-    char correct_answers[50];
+    char correct_answers[MAX_QUESTIONS + 10];
     int quiz_duration;         // Quiz duration in seconds (0 = unlimited)
     QuizState state;           // Current quiz state
-    char question_file[128];   // Selected question file
+    char question_file[MAX_FILENAME_LEN];   // Selected question file
     time_t start_time;         // Scheduled start time (0 = immediate)
     time_t end_time;           // Expiration time (0 = no expiration)
     bool randomize_answers;    // Whether to randomize answer order
@@ -52,12 +52,12 @@ typedef struct {
 
 typedef struct {
     char type[32];
-    char data[1000];
+    char data[1024];
 } Message;
 
 // Upload chunk buffer
 typedef struct {
-    char filename[128];
+    char filename[MAX_FILENAME_LEN];
     char* data;
     size_t current_size;
     size_t capacity;

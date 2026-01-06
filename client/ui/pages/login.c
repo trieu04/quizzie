@@ -23,6 +23,9 @@ static void on_login_clicked(GtkWidget *widget, gpointer data) {
 	(void)widget;
 	ClientContext* ctx = (ClientContext*)data;
 
+	// Clear previous status message on new login attempt
+	ctx->status_message[0] = '\0';
+
 	const char* server = gtk_entry_get_text(GTK_ENTRY(server_entry));
 	const char* port_str = gtk_entry_get_text(GTK_ENTRY(port_entry));
 	const char* username = gtk_entry_get_text(GTK_ENTRY(username_entry));
@@ -30,12 +33,14 @@ static void on_login_clicked(GtkWidget *widget, gpointer data) {
 
 	if (strlen(server) == 0 || strlen(port_str) == 0) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Server and port cannot be empty!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
 
 	if (strlen(username) == 0 || strlen(password) == 0) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Username and password cannot be empty!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
@@ -43,6 +48,7 @@ static void on_login_clicked(GtkWidget *widget, gpointer data) {
 	int port = atoi(port_str);
 	if (port <= 0 || port > 65535) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Invalid port number!");
+		gtk_widget_set_name(status_label, "error-label");
 		gtk_widget_show(status_label);
 		return;
 	}
@@ -54,9 +60,11 @@ static void on_login_clicked(GtkWidget *widget, gpointer data) {
 
 	if (!ctx->connected) {
 		gtk_label_set_text(GTK_LABEL(status_label), "Connecting to server...");
+		gtk_widget_set_name(status_label, "info-label");
 		gtk_widget_show(status_label);
 		if (net_connect(ctx, ctx->server_ip, ctx->server_port) != 0) {
 			gtk_label_set_text(GTK_LABEL(status_label), "Failed to connect to server!");
+			gtk_widget_set_name(status_label, "error-label");
 			gtk_widget_show(status_label);
 			return;
 		}
@@ -69,6 +77,7 @@ static void on_login_clicked(GtkWidget *widget, gpointer data) {
 	snprintf(msg, sizeof(msg), "%s,%s", username, password);
 	client_send_message(ctx, "LOGIN", msg);
 	gtk_label_set_text(GTK_LABEL(status_label), "Logging in...");
+	gtk_widget_set_name(status_label, "info-label");
 	gtk_widget_show(status_label);
 }
 
@@ -99,14 +108,12 @@ GtkWidget* page_login_create(ClientContext* ctx) {
 	gtk_widget_set_margin_top(header, 30);
 	gtk_widget_set_margin_bottom(header, 20);
 
-	GtkWidget *title = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(title), "<span size='30000' weight='bold' foreground='#1c2430'>QUIZZIE</span>");
-	gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
+	GtkWidget *title = gtk_label_new("QUIZZIE");
+	gtk_style_context_add_class(gtk_widget_get_style_context(title), "app-logo");
 	gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 0);
 
-	GtkWidget *subtitle = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(subtitle), "<span size='large' foreground='#5b6472'>Online Quiz Application</span>");
-	gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "header-subtitle");
+	GtkWidget *subtitle = gtk_label_new("Compete & Learn.");
+	gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "app-tagline");
 	gtk_box_pack_start(GTK_BOX(header), subtitle, FALSE, FALSE, 0);
 
 	gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
@@ -253,8 +260,26 @@ void page_login_update(ClientContext* ctx) {
 		gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
 		gtk_widget_set_no_show_all(status_label, FALSE);
 		gtk_widget_show(status_label);
-		// Clear status message after displaying
-		ctx->status_message[0] = '\0';
+		
+		// Add color styling based on message type
+		const char* msg = ctx->status_message;
+		if (strstr(msg, "failed") || strstr(msg, "Failed") || strstr(msg, "error") || 
+		    strstr(msg, "Error") || strstr(msg, "Invalid") || strstr(msg, "cannot") ||
+		    strstr(msg, "Incorrect") || strstr(msg, "does not exist") || 
+		    strstr(msg, "required") || strstr(msg, "full") || strstr(msg, "not found") ||
+		    strstr(msg, "No active") || strstr(msg, "maximum") || strstr(msg, "Maximum") ||
+		    strstr(msg, "wrong") || strstr(msg, "Wrong") || strstr(msg, "Another") ||
+		    strstr(msg, "logged in")) {
+			// Error message - red
+			gtk_widget_set_name(status_label, "error-label");
+		} else if (strstr(msg, "success") || strstr(msg, "Success") || strstr(msg, "successful")) {
+			// Success message - green
+			gtk_widget_set_name(status_label, "success-label");
+		} else {
+			// Info message - default
+			gtk_widget_set_name(status_label, "info-label");
+		}
+		// Don't clear message here - let it persist until user takes new action
 	} else if (status_label && ctx->status_message[0] == '\0') {
 		gtk_widget_hide(status_label);
 	}

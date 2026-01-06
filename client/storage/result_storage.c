@@ -3,6 +3,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <errno.h>
 
 // Create results directory if it doesn't exist
 static void ensure_results_dir() {
@@ -19,7 +20,9 @@ static void ensure_results_dir() {
             #ifdef _WIN32
             mkdir(result_dirs[i]);
             #else
-            mkdir(result_dirs[i], 0755);
+            if (mkdir(result_dirs[i], 0755) == -1 && errno != EEXIST) {
+                perror("mkdir");
+            }
             #endif
         }
     }
@@ -33,11 +36,15 @@ int save_quiz_result(ClientContext* ctx, const char* quiz_type, const char* subj
     
     ensure_results_dir();
     
-    // Generate filename
+    // Generate filename with bounds checking
     time_t now = time(NULL);
     char filename[256];
+    char safe_username[MAX_USERNAME_LEN + 1];
+    strncpy(safe_username, ctx->username, MAX_USERNAME_LEN);
+    safe_username[MAX_USERNAME_LEN] = '\0';
+    
     snprintf(filename, sizeof(filename), "%s_%s_%s_%ld.txt", 
-             ctx->username, quiz_type, subject, (long)now);
+             safe_username, quiz_type, subject, (long)now);
     
     // Try different result directories
     const char* result_dirs[] = {

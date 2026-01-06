@@ -13,7 +13,6 @@ static GtkWidget *file_combo = NULL;
 static GtkWidget *easy_spin = NULL;
 static GtkWidget *med_spin = NULL;
 static GtkWidget *hard_spin = NULL;
-static GtkWidget *any_spin = NULL;
 static GtkWidget *rand_check = NULL;
 static GtkWidget *status_label = NULL;
 
@@ -29,37 +28,18 @@ static void on_cancel_clicked(GtkWidget *widget, gpointer data) {
     ui_navigate_to_page(PAGE_ADMIN_PANEL);
 }
 
-// Helper to parse "YYYY-MM-DD HH:MM" to time_t
-static time_t parse_datetime(const char* str) {
-    struct tm tm;
-    memset(&tm, 0, sizeof(struct tm));
-    // Format: YYYY-MM-DD HH:MM
-    // Use sscanf
-    int y, m, d, H, M;
-    if (sscanf(str, "%d-%d-%d %d:%d", &y, &m, &d, &H, &M) != 5) {
-        return 0;
-    }
-    tm.tm_year = y - 1900;
-    tm.tm_mon = m - 1;
-    tm.tm_mday = d;
-    tm.tm_hour = H;
-    tm.tm_min = M;
-    tm.tm_isdst = -1;
-    return mktime(&tm);
-}
-
 static void on_create_clicked(GtkWidget *widget, gpointer data) {
     (void)widget;
     ClientContext* ctx = (ClientContext*)data;
     
     // Get values
     int duration = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(duration_spin));
-    const char* start_str = gtk_entry_get_text(GTK_ENTRY(start_time_entry));
-    const char* end_str = gtk_entry_get_text(GTK_ENTRY(end_time_entry));
     
     int active_idx = gtk_combo_box_get_active(GTK_COMBO_BOX(file_combo));
     if (active_idx < 0) {
-        gtk_label_set_text(GTK_LABEL(status_label), "Please select a question file.");
+        strncpy(ctx->status_message, "Please select a question file.", sizeof(ctx->status_message) - 1);
+        ctx->status_message[sizeof(ctx->status_message) - 1] = '\0';
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         return;
     }
     const char* filename = ctx->available_files_list[active_idx].name;
@@ -67,44 +47,36 @@ static void on_create_clicked(GtkWidget *widget, gpointer data) {
     int easy = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(easy_spin));
     int med = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(med_spin));
     int hard = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(hard_spin));
-    int any = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(any_spin));
     
     bool rand = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rand_check));
     
-    // Parse times
-    time_t start_time = parse_datetime(start_str);
-    time_t end_time = parse_datetime(end_str);
+    // Use current system time for start_time and start_time + 10 minutes for end_time
+    time_t start_time = time(NULL);
+    time_t end_time = start_time + 600;
     
-    if (start_time == 0 || end_time == 0) {
-        gtk_label_set_text(GTK_LABEL(status_label), "Invalid Date format. Use YYYY-MM-DD HH:MM");
-        return;
-    }
-    
-    if (end_time <= start_time) {
-        gtk_label_set_text(GTK_LABEL(status_label), "End Time must be after Start Time.");
-        return;
-    }
-    
-    if (easy + med + hard + any <= 0) {
-        gtk_label_set_text(GTK_LABEL(status_label), "Must request at least 1 question.");
+    if (easy + med + hard <= 0) {
+        strncpy(ctx->status_message, "Must request at least 1 question.", sizeof(ctx->status_message) - 1);
+        ctx->status_message[sizeof(ctx->status_message) - 1] = '\0';
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         return;
     }
     
     // Check against available stats (optional client side check)
     QuestionFile* file = &ctx->available_files_list[active_idx];
     if (easy > file->easy_cnt || med > file->med_cnt || hard > file->hard_cnt) {
-        gtk_label_set_text(GTK_LABEL(status_label), "Not enough questions of requested difficulty.");
-        // We can allow "Any" to fill gaps but let's warn first or just let server handle truncation.
-        // Server truncates quietly. Let's proceed.
+        strncpy(ctx->status_message, "Not enough questions of requested difficulty.", sizeof(ctx->status_message) - 1);
+        ctx->status_message[sizeof(ctx->status_message) - 1] = '\0';
+        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        return;
     }
     
     // Construct config string: 
-    // duration|start_time|end_time|filename|easy|med|hard|any|rand_ans
+    // duration|start_time|end_time|filename|easy|med|hard|rand_ans
     char config[512];
-    snprintf(config, sizeof(config), "%d|%ld|%ld|%s|%d|%d|%d|%d|%d",
+    snprintf(config, sizeof(config), "%d|%ld|%ld|%s|%d|%d|%d|%d",
              duration * 60, // Server expects seconds
              start_time, end_time, filename,
-             easy, med, hard, any, rand ? 1 : 0);
+             easy, med, hard, rand ? 1 : 0);
              
     // Send CREATE_ROOM
     char message[1024];
@@ -138,22 +110,31 @@ static void on_file_changed(GtkComboBox *widget, gpointer data) {
 GtkWidget* page_create_room_create(ClientContext* ctx) {
     // Reset all
     duration_spin = NULL; start_time_entry = NULL; end_time_entry = NULL;
-    file_combo = NULL; easy_spin = NULL; med_spin = NULL; hard_spin = NULL; any_spin = NULL;
+    file_combo = NULL; easy_spin = NULL; med_spin = NULL; hard_spin = NULL;
     rand_check = NULL; status_label = NULL;
     val_easy = NULL; val_med = NULL; val_hard = NULL; val_total = NULL;
     
     GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(main_box), "page");
     
-    // Header
-    GtkWidget *header = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_margin_top(header, 20);
-    gtk_widget_set_margin_bottom(header, 10);
+    // Top Toolbar
+    GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_margin_top(toolbar, 10);
+    gtk_widget_set_margin_bottom(toolbar, 10);
     
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold'>Create Quiz Room</span>");
-    gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
+    // Title Section
+    GtkWidget *title = gtk_label_new("Create Quiz Room");
+    gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title"); 
+    gtk_widget_set_halign(title, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(toolbar), title, FALSE, FALSE, 0);
+    
+    // Cancel Button (Back) in Toolbar
+    GtkWidget *btn_cancel = gtk_button_new_with_label("Cancel");
+    g_signal_connect(btn_cancel, "clicked", G_CALLBACK(on_cancel_clicked), ctx);
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_cancel), "btn-ghost");
+    gtk_box_pack_end(GTK_BOX(toolbar), btn_cancel, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(main_box), toolbar, FALSE, FALSE, 0);
     
     // Scrollable content
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
@@ -236,8 +217,8 @@ GtkWidget* page_create_room_create(ClientContext* ctx) {
     GtkWidget *lbl_end = gtk_label_new("End Time:");
     gtk_widget_set_halign(lbl_end, GTK_ALIGN_END);
     end_time_entry = gtk_entry_new();
-    // Default end time + 1 hour for convenience
-    tm->tm_hour++;
+    // Default end time + 10 minutes
+    tm->tm_min += 10;
     mktime(tm); // normalize
     strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", tm);
     gtk_entry_set_text(GTK_ENTRY(end_time_entry), buf);
@@ -277,13 +258,6 @@ GtkWidget* page_create_room_create(ClientContext* ctx) {
     gtk_grid_attach(GTK_GRID(form_grid), lbl_hard, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(form_grid), hard_spin, 1, row++, 1, 1);
     
-    GtkWidget *lbl_any = gtk_label_new("Any Count:");
-    gtk_widget_set_halign(lbl_any, GTK_ALIGN_END);
-    any_spin = gtk_spin_button_new_with_range(0, 50, 1);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(any_spin), 0);
-    gtk_grid_attach(GTK_GRID(form_grid), lbl_any, 0, row, 1, 1);
-    gtk_grid_attach(GTK_GRID(form_grid), any_spin, 1, row++, 1, 1);
-    
     rand_check = gtk_check_button_new_with_label("Randomize Answer Order");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rand_check), TRUE);
     gtk_grid_attach(GTK_GRID(form_grid), rand_check, 1, row++, 1, 1);
@@ -297,15 +271,11 @@ GtkWidget* page_create_room_create(ClientContext* ctx) {
     GtkWidget *btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_widget_set_halign(btn_box, GTK_ALIGN_END);
     
-    GtkWidget *btn_cancel = gtk_button_new_with_label("Cancel");
-    g_signal_connect(btn_cancel, "clicked", G_CALLBACK(on_cancel_clicked), ctx);
-    gtk_style_context_add_class(gtk_widget_get_style_context(btn_cancel), "btn-ghost");
-    
     GtkWidget *btn_create = gtk_button_new_with_label("Create Room");
     g_signal_connect(btn_create, "clicked", G_CALLBACK(on_create_clicked), ctx);
     gtk_style_context_add_class(gtk_widget_get_style_context(btn_create), "btn-primary");
+    gtk_widget_set_size_request(btn_create, 150, 45); 
     
-    gtk_box_pack_start(GTK_BOX(btn_box), btn_cancel, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_box), btn_create, FALSE, FALSE, 0);
     
     gtk_grid_attach(GTK_GRID(form_grid), btn_box, 0, row++, 2, 1);
@@ -325,5 +295,24 @@ void page_create_room_update(ClientContext* ctx) {
         else gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(file_combo), "No files found");
         
         ctx->files_refreshed = false;
+    }
+    
+    // Handle status messages from server
+    if (status_label && ctx->status_message[0] != '\0') {
+        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
+        
+        // Add color styling based on message type
+        const char* msg = ctx->status_message;
+        if (strstr(msg, "failed") || strstr(msg, "Failed") || strstr(msg, "error") || 
+            strstr(msg, "Error") || strstr(msg, "Invalid") || strstr(msg, "cannot") ||
+            strstr(msg, "Not enough") || strstr(msg, "Must") || strstr(msg, "Please")) {
+            gtk_widget_set_name(status_label, "error-label");
+        } else if (strstr(msg, "success") || strstr(msg, "Success") || strstr(msg, "successful") ||
+                   strstr(msg, "created") || strstr(msg, "Created")) {
+            gtk_widget_set_name(status_label, "success-label");
+        } else {
+            gtk_widget_set_name(status_label, "info-label");
+        }
+        // Don't clear message here - let it persist until user takes new action
     }
 }

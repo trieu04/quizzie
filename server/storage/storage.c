@@ -16,8 +16,6 @@ static const char* LOG_PATHS[] = {
     "data/logs/logs.txt",
     "../data/logs/logs.txt",
     "../../data/logs/logs.txt",
-    "data/logs.txt",
-    "../data/logs.txt",
     NULL
 };
 
@@ -34,15 +32,13 @@ static const char* USER_PATHS[] = {
     "data/users/users.txt",
     "../data/users/users.txt",
     "../../data/users/users.txt",
-    "data/users.txt",
-    "../data/users.txt",
     NULL
 };
 
 static const char* QUESTION_WRITE_PREFIXES[] = {
-    "data/questions/",
-    "../data/questions/",
-    "../../data/questions/",
+    "data/questions/exam/",
+    "../data/questions/exam/",
+    "../../data/questions/exam/",
     NULL
 };
 
@@ -55,7 +51,7 @@ static FILE* fopen_first(const char** paths, const char* mode) {
     return NULL;
 }
 
-static void log_with_timestamp(const char* fmt, ...) {
+void storage_log_with_timestamp(const char* fmt, ...) {
     char buffer[512];
     va_list args;
     va_start(args, fmt);
@@ -97,8 +93,8 @@ static void pick_questions_by_diff(StorageQRow* all_rows, int all_cnt, int* pick
             } else if (strcasecmp(diff_target, "medium") == 0) {
                 // Matches "medium" OR anything not explicitly "easy" or "hard" (default fallback)
                 // But strictly speaking, if we have explicit diffs, we match them.
-                if (strncasecmp(all_rows[i].diff, "easy", 4) != 0 && 
-                    strncasecmp(all_rows[i].diff, "hard", 4) != 0) {
+                if (strncasecmp(all_rows[i].diff, "easy", (size_t)4) != 0 && 
+                    strncasecmp(all_rows[i].diff, "hard", (size_t)4) != 0) {
                     match = true;
                 }
             } else {
@@ -131,10 +127,10 @@ static void pick_questions_by_diff(StorageQRow* all_rows, int all_cnt, int* pick
 }
 
 int storage_load_questions(const char* filename, char* questions, char* answers) {
-    // If CSV extension, use CSV loader with randomization, limit to 20 questions
+    // If CSV extension, use CSV loader with randomization
     size_t len = strlen(filename);
     if (len >= 4 && strcasecmp(filename + len - 4, ".csv") == 0) {
-        return storage_load_questions_csv(filename, questions, answers, 20);
+        return storage_load_questions_csv(filename, questions, answers, DEFAULT_QUESTION_LIMIT);
     }
 
     // Try multiple candidate paths for TXT format
@@ -165,8 +161,8 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
         return -1;
     }
 
-    strcpy(questions, "");
-    strcpy(answers, "");
+    questions[0] = '\0';
+    answers[0] = '\0';
     char line[BUFFER_SIZE];
     int question_count = 0;
 
@@ -216,7 +212,7 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
     }
 
     char info[64];
-    sprintf(info, "Loaded %d questions", question_count);
+    snprintf(info, sizeof(info), "Loaded %d questions", question_count);
     LOG_INFO(info);
     return 0;
 }
@@ -284,7 +280,7 @@ int storage_register_user(const char* username, const char* password) {
     fclose(file);
     
     LOG_INFO("User registered successfully");
-    log_with_timestamp("REGISTER user=%s", username);
+    storage_log_with_timestamp("REGISTER user=%s", username);
     return 0;
 }
 
@@ -295,6 +291,7 @@ int storage_verify_login(const char* username, const char* password, int* out_ro
     FILE* file = fopen_first(USER_PATHS, "r");
     if (!file) return -1;
     
+    bool user_found = false;
     char line[256];
     while (fgets(line, sizeof(line), file)) {
         // Remove newline
@@ -304,23 +301,34 @@ int storage_verify_login(const char* username, const char* password, int* out_ro
         // Parse username:password:role
         int parsed = sscanf(line, "%[^:]:%[^:]:%s", stored_user, stored_pass, stored_role);
         
-        if (parsed >= 2 && strcmp(stored_user, username) == 0 && strcmp(stored_pass, password) == 0) {
-            fclose(file);
-            if (out_role) {
-                // Check role if present, default to participant
-                if (parsed == 3 && strcmp(stored_role, "admin") == 0) {
-                    *out_role = 1; // ROLE_ADMIN
-                } else {
-                    *out_role = 0; // ROLE_PARTICIPANT
+        if (parsed >= 2 && strcmp(stored_user, username) == 0) {
+            user_found = true;
+            if (strcmp(stored_pass, password) == 0) {
+                fclose(file);
+                if (out_role) {
+                    // Check role if present, default to participant
+                    if (parsed == 3 && strcmp(stored_role, "admin") == 0) {
+                        *out_role = 1; // ROLE_ADMIN
+                    } else {
+                        *out_role = 0; // ROLE_PARTICIPANT
+                    }
                 }
+                storage_log_with_timestamp("LOGIN_SUCCESS user=%s role=%s", username, parsed == 3 ? stored_role : "participant");
+                return 0; // Login successful
+            } else {
+                // Found user but wrong password
+                fclose(file);
+                storage_log_with_timestamp("LOGIN_FAILED user=%s reason=wrong_password", username);
+                return -2; // Wrong password
             }
-            log_with_timestamp("LOGIN_SUCCESS user=%s role=%s", username, parsed == 3 ? stored_role : "participant");
-            return 0; // Login successful
         }
     }
     fclose(file);
-    log_with_timestamp("LOGIN_FAILED user=%s", username);
-    return -1; // Login failed
+    if (!user_found) {
+        storage_log_with_timestamp("LOGIN_FAILED user=%s reason=user_not_found", username);
+        return -1; // User not found
+    }
+    return -1; // Should not reach here
 }
 
 // --- CSV parsing and randomization helpers ---
@@ -498,7 +506,7 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
         count++;
         // Guard against buffer overflow
         if (strlen(questions) > BUFFER_SIZE - 64) break;
-        if (strlen(answers) > 48) break;
+        if (strlen(answers) > MAX_QUESTIONS * 2 - 10) break;
     }
 
     // Free rows
@@ -514,7 +522,7 @@ int storage_load_questions_csv(const char* filename, char* questions, char* answ
     free(idx);
 
     char info[64];
-    sprintf(info, "Loaded %d randomized questions (CSV)", count);
+    snprintf(info, sizeof(info), "Loaded %d randomized questions (CSV)", count);
     LOG_INFO(info);
     return count > 0 ? 0 : -1;
 }
@@ -552,12 +560,27 @@ int storage_save_csv_bank(const char* filename, const char* csv_data) {
 // Load practice questions filtered by difficulty
 int storage_load_practice_questions(const char* filename, int easy_count, int med_count, int hard_count,
                                      char* questions, char* answers) {
-    // Try multiple candidate paths
+    // Validate input counts
+    if (easy_count < 0) easy_count = 0;
+    if (med_count < 0) med_count = 0;
+    if (hard_count < 0) hard_count = 0;
+    
+    // Limit total
+    int total_requested = easy_count + med_count + hard_count;
+    if (total_requested > MAX_QUESTIONS) {
+        // Proportionally reduce
+        double scale = (double)MAX_QUESTIONS / total_requested;
+        easy_count = (int)(easy_count * scale);
+        med_count = (int)(med_count * scale);
+        hard_count = (int)(hard_count * scale);
+    }
+    
+    // Try multiple candidate paths in practice subfolder
     const char* prefixes[] = {
         "",
-        "data/questions/",
-        "../data/questions/",
-        "../../data/questions/",
+        "data/questions/practice/",
+        "../data/questions/practice/",
+        "../../data/questions/practice/",
         NULL
     };
     
@@ -575,7 +598,6 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
     }
 
     // Parse CSV and bucket by difficulty
-    // typedef struct { char q[256]; char opts[4][128]; char ans; char diff[16]; } QRow; // Use StorageQRow
     StorageQRow easy_rows[50], med_rows[50], hard_rows[50];
     int e_cnt = 0, m_cnt = 0, h_cnt = 0;
     
@@ -603,14 +625,15 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
         strncpy(qr.diff, diff_str, sizeof(qr.diff) - 1);
         qr.diff[sizeof(qr.diff) - 1] = '\0';
         
-        // Bucket by difficulty
-        if (strncmp(qr.diff, "easy", 4) == 0 && e_cnt < 50) {
-            easy_rows[e_cnt++] = qr;
-        } else if (strncmp(qr.diff, "hard", 4) == 0 && h_cnt < 50) {
-            hard_rows[h_cnt++] = qr;
-        } else if (m_cnt < 50) {
-            med_rows[m_cnt++] = qr;
+        // Bucket by difficulty - check explicitly for each level
+        if (strncmp(qr.diff, "easy", 4) == 0) {
+            if (e_cnt < 50) easy_rows[e_cnt++] = qr;
+        } else if (strncmp(qr.diff, "hard", 4) == 0) {
+            if (h_cnt < 50) hard_rows[h_cnt++] = qr;
+        } else if (strncmp(qr.diff, "medium", 6) == 0) {
+            if (m_cnt < 50) med_rows[m_cnt++] = qr;
         }
+        // Skip questions with invalid difficulty levels
         
         free_fields(fields, nf);
     }
@@ -627,26 +650,47 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
     shuffle_indices(m_idx, m_cnt);
     shuffle_indices(h_idx, h_cnt);
     
-    // Build output string
+    // Build output string with buffer overflow protection
     questions[0] = '\0';
     answers[0] = '\0';
     int out_count = 0;
+    size_t q_len = 0, a_len = 0;
+    const size_t Q_MAX = BUFFER_SIZE - 256;  // Leave 256 bytes margin
+    const size_t A_MAX = MAX_QUESTIONS * 2;  // answers string size (letter + comma)
     
     // Add easy questions
     int take_easy = (easy_count < e_cnt) ? easy_count : e_cnt;
     for (int i = 0; i < take_easy && out_count < MAX_QUESTIONS; i++) {
         StorageQRow* qr = &easy_rows[e_idx[i]];
-        if (out_count > 0) strcat(questions, ";");
-        strcat(questions, qr->q);
-        strcat(questions, "?");
-        char opts[512];
+        if (out_count > 0) {
+            if (q_len + 1 >= Q_MAX) break;
+            strcat(questions, ";");
+            q_len++;
+        }
+        
+        // Check if adding this question would overflow
+        char opts[600];  // Increased from 512 to accommodate 4x128 byte options
         snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
                  qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
-        strcat(questions, opts);
+        size_t needed = strlen(qr->q) + strlen(opts) + 2;  // +2 for ? and sep
+        if (q_len + needed >= Q_MAX) break;
         
-        if (out_count > 0) strcat(answers, ",");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        strcat(questions, opts);
+        q_len = strlen(questions);
+        
+        // Check if we have space for answer (letter + comma)
+        size_t ans_needed = (out_count > 0 ? 2 : 1);
+        if (a_len + ans_needed >= A_MAX) break;
+        
+        if (out_count > 0) {
+            strcat(answers, ",");
+            a_len++;
+        }
         char ans_str[2] = {qr->ans, '\0'};
         strcat(answers, ans_str);
+        a_len++;
         out_count++;
     }
     
@@ -654,17 +698,34 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
     int take_med = (med_count < m_cnt) ? med_count : m_cnt;
     for (int i = 0; i < take_med && out_count < MAX_QUESTIONS; i++) {
         StorageQRow* qr = &med_rows[m_idx[i]];
-        if (out_count > 0) strcat(questions, ";");
-        strcat(questions, qr->q);
-        strcat(questions, "?");
-        char opts[512];
+        if (out_count > 0) {
+            if (q_len + 1 >= Q_MAX) break;
+            strcat(questions, ";");
+            q_len++;
+        }
+        
+        char opts[600];  // Increased from 512
         snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
                  qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
-        strcat(questions, opts);
+        size_t needed = strlen(qr->q) + strlen(opts) + 2;
+        if (q_len + needed >= Q_MAX) break;
         
-        if (out_count > 0) strcat(answers, ",");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        strcat(questions, opts);
+        q_len = strlen(questions);
+        
+        // Check if we have space for answer (letter + comma)
+        size_t ans_needed = (out_count > 0 ? 2 : 1);
+        if (a_len + ans_needed >= A_MAX) break;
+        
+        if (out_count > 0) {
+            strcat(answers, ",");
+            a_len++;
+        }
         char ans_str[2] = {qr->ans, '\0'};
         strcat(answers, ans_str);
+        a_len++;
         out_count++;
     }
     
@@ -672,33 +733,87 @@ int storage_load_practice_questions(const char* filename, int easy_count, int me
     int take_hard = (hard_count < h_cnt) ? hard_count : h_cnt;
     for (int i = 0; i < take_hard && out_count < MAX_QUESTIONS; i++) {
         StorageQRow* qr = &hard_rows[h_idx[i]];
-        if (out_count > 0) strcat(questions, ";");
-        strcat(questions, qr->q);
-        strcat(questions, "?");
-        char opts[512];
+        if (out_count > 0) {
+            if (q_len + 1 >= Q_MAX) break;
+            strcat(questions, ";");
+            q_len++;
+        }
+        
+        char opts[600];  // Increased from 512
         snprintf(opts, sizeof(opts), "A.%s|B.%s|C.%s|D.%s^%s",
                  qr->opts[0], qr->opts[1], qr->opts[2], qr->opts[3], qr->diff);
-        strcat(questions, opts);
+        size_t needed = strlen(qr->q) + strlen(opts) + 2;
+        if (q_len + needed >= Q_MAX) break;
         
-        if (out_count > 0) strcat(answers, ",");
+        strcat(questions, qr->q);
+        strcat(questions, "?");
+        strcat(questions, opts);
+        q_len = strlen(questions);
+        
+        // Check if we have space for answer (letter + comma)
+        size_t ans_needed = (out_count > 0 ? 2 : 1);
+        if (a_len + ans_needed >= A_MAX) break;
+        
+        if (out_count > 0) {
+            strcat(answers, ",");
+            a_len++;
+        }
         char ans_str[2] = {qr->ans, '\0'};
         strcat(answers, ans_str);
+        a_len++;
         out_count++;
     }
     
     return out_count > 0 ? 0 : -1;
 }
 
+// Helper function to count difficulty stats in a CSV file
+static void count_question_stats(const char* filepath, int* easy, int* medium, int* hard, int* total) {
+    *easy = 0;
+    *medium = 0;
+    *hard = 0;
+    *total = 0;
+    
+    FILE* f = fopen(filepath, "r");
+    if (!f) return;
+    
+    char line[2048];
+    while(fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\n\r")] = 0;
+        if (line[0] == '\0' || line[0] == 'i') continue; // skip empty or header
+        
+        // Find last comma to get difficulty field
+        char* last_comma = strrchr(line, ',');
+        if (last_comma) {
+            char* diff = last_comma + 1;
+            // Trim whitespace
+            while (*diff == ' ' || *diff == '\t') diff++;
+            
+            if (strncmp(diff, "easy", 4) == 0) (*easy)++;
+            else if (strncmp(diff, "hard", 4) == 0) (*hard)++;
+            else if (strncmp(diff, "medium", 6) == 0) (*medium)++;
+            // Only count valid difficulty levels
+            
+            if (strncmp(diff, "easy", 4) == 0 || 
+                strncmp(diff, "hard", 4) == 0 || 
+                strncmp(diff, "medium", 6) == 0) {
+                (*total)++;
+            }
+        }
+    }
+    fclose(f);
+}
+
 int storage_get_question_files(char* buffer, int max_len) {
-    // List .csv files in data/questions/ and count stats
-    const char* path = "data/questions/";
+    // List .csv files in data/questions/exam/ and count stats (for admin)
+    const char* path = "data/questions/exam/";
     DIR* dir = opendir(path);
     if (!dir) {
-        path = "../data/questions/";
+        path = "../data/questions/exam/";
         dir = opendir(path);
     }
     if (!dir) {
-        path = "../../data/questions/";
+        path = "../../data/questions/exam/";
         dir = opendir(path);
     }
     
@@ -718,34 +833,15 @@ int storage_get_question_files(char* buffer, int max_len) {
             // Open file to count stats
             char fullpath[512];
             snprintf(fullpath, sizeof(fullpath), "%s%s", path, ent->d_name);
-            FILE* f = fopen(fullpath, "r");
+            
             int e=0, m=0, h=0, t=0;
-            if (f) {
-                char line[2048];
-                while(fgets(line, sizeof(line), f)) {
-                    line[strcspn(line, "\n\r")] = 0;
-                    if (line[0] == '\0' || line[0] == 'i') continue;
-                    
-                    // Simple search for difficulty without full parsing (faster)
-                    // Format: ...,answer,difficulty
-                    // Find last comma
-                    char* last_comma = strrchr(line, ',');
-                    if (last_comma) {
-                         // Check difficulty
-                         if (tolower(*(last_comma+1)) == 'e') e++;
-                         else if (tolower(*(last_comma+1)) == 'h') h++;
-                         else m++; // default medium
-                         t++;
-                    }
-                }
-                fclose(f);
-            }
+            count_question_stats(fullpath, &e, &m, &h, &t);
         
-            // Check buffer space
             // Format: name|E,M,H,T
-            char entry[256];
+            char entry[512];  // Increased from 256 to handle long filenames
             snprintf(entry, sizeof(entry), "%s|%d,%d,%d,%d", ent->d_name, e, m, h, t);
             
+            // Check buffer space
             if (strlen(buffer) + strlen(entry) + 2 >= (size_t)max_len) break;
             
             if (!first) strcat(buffer, ";");
@@ -758,14 +854,70 @@ int storage_get_question_files(char* buffer, int max_len) {
     return 0;
 }
 
-int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_cnt, int hard_cnt, int any_cnt, 
+int storage_get_practice_subjects(char* buffer, int max_len) {
+    // List .csv files in data/questions/practice/ directory
+    const char* path = "data/questions/practice/";
+    DIR* dir = opendir(path);
+    if (!dir) {
+        path = "../data/questions/practice/";
+        dir = opendir(path);
+    }
+    if (!dir) {
+        path = "../../data/questions/practice/";
+        dir = opendir(path);
+    }
+    
+    if (!dir) {
+        buffer[0] = '\0';
+        return -1;
+    }
+    
+    buffer[0] = '\0';
+    struct dirent* ent;
+    int first = 1;
+    
+    while ((ent = readdir(dir)) != NULL) {
+        // Check extension .csv
+        size_t len = strlen(ent->d_name);
+        if (len > 4 && strcasecmp(ent->d_name + len - 4, ".csv") == 0) {
+            // Extract subject name (filename without .csv)
+            char subject[128];
+            strncpy(subject, ent->d_name, len - 4);
+            subject[len - 4] = '\0';
+            
+            // Count stats
+            char fullpath[512];
+            snprintf(fullpath, sizeof(fullpath), "%s%s", path, ent->d_name);
+            
+            int e=0, m=0, h=0, t=0;
+            count_question_stats(fullpath, &e, &m, &h, &t);
+            
+            // Format: subject|easy,medium,hard
+            char entry[256];
+            snprintf(entry, sizeof(entry), "%s|%d,%d,%d", subject, e, m, h);
+            
+            // Check buffer space
+            if (strlen(buffer) + strlen(entry) + 2 >= (size_t)max_len) break;
+            
+            if (!first) strcat(buffer, ";");
+            strcat(buffer, entry);
+            first = 0;
+        }
+    }
+    
+    closedir(dir);
+    return (buffer[0] != '\0') ? 0 : -1;
+}
+
+int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_cnt, int hard_cnt, 
                                     bool randomize_answers, char* questions, char* answers) {
     // Similar to load_practice but handles "any" count and randomization of answers
+    // Load from exam subfolder for admin-created rooms
     const char* prefixes[] = {
         "",
-        "data/questions/",
-        "../data/questions/",
-        "../../data/questions/",
+        "data/questions/exam/",
+        "../data/questions/exam/",
+        "../../data/questions/exam/",
         "data/",
         "../data/",
         NULL
@@ -795,9 +947,6 @@ int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_
         
         char* fields[8] = {0};
         int nf = parse_csv_fields(line, fields, 8);
-
-// --- Server State Persistence ---
-
         if (nf < 7) { free_fields(fields, nf); continue; }
         
         StorageQRow qr;
@@ -834,7 +983,6 @@ int storage_load_filtered_questions(const char* filename, int easy_cnt, int med_
     if (easy_cnt > 0) pick_questions_by_diff(all_rows, all_cnt, picked_indices, selected, &sel_cnt, "easy", easy_cnt);
     if (med_cnt > 0) pick_questions_by_diff(all_rows, all_cnt, picked_indices, selected, &sel_cnt, "medium", med_cnt);
     if (hard_cnt > 0) pick_questions_by_diff(all_rows, all_cnt, picked_indices, selected, &sel_cnt, "hard", hard_cnt);
-    if (any_cnt > 0) pick_questions_by_diff(all_rows, all_cnt, picked_indices, selected, &sel_cnt, "any", any_cnt);
     
     // Now write selected to output buffers
     for (int k = 0; k < sel_cnt; k++) {
@@ -976,11 +1124,11 @@ int storage_load_server_state(ServerContext* ctx) {
         return 0; // Not an error, just clean start
     }
 
-    char line[BUFFER_SIZE * 3]; // Large buffer for questions
+    char line[BUFFER_SIZE * 2]; // Large buffer for questions
     
-    // Clear existing context logic just in case, but usually called on fresh init
+    // Clear existing context, but usually called on fresh init
     ctx->room_count = 0;
-    ctx->client_count = 0; // We don't restore connected clients, only room logic state
+    ctx->client_count = 0; // Don't restore connected clients, only room state
 
     while (fgets(line, sizeof(line), file)) {
         line[strcspn(line, "\n\r")] = 0;
@@ -996,8 +1144,8 @@ int storage_load_server_state(ServerContext* ctx) {
             
             int rand_ans = 0;
             
-            // Allow sloppy parsing:
-            sscanf(line + 5, "%d,%49[^,],%d,%d,%ld,%ld,%d,%d,%127[^,],%49s",
+            // Parse with proper buffer size limits
+            sscanf(line + 5, "%d,%63[^,],%d,%d,%ld,%ld,%d,%d,%127[^,],%109s",
                    &r->id,
                    r->host_username,
                    &r->quiz_duration,
@@ -1008,6 +1156,10 @@ int storage_load_server_state(ServerContext* ctx) {
                    &r->client_count,
                    r->question_file,
                    r->correct_answers);
+            
+            r->host_username[MAX_USERNAME_LEN - 1] = '\0';
+            r->question_file[MAX_FILENAME_LEN - 1] = '\0';
+            r->correct_answers[MAX_QUESTIONS + 9] = '\0';
             
             r->randomize_answers = rand_ans;
             r->host_sock = -1; // disconnected
@@ -1048,11 +1200,14 @@ int storage_load_server_state(ServerContext* ctx) {
             // PARTICIPANT:roomid,user,role,start,taking,submitted,score,total,curr,answers
             int rid=0, role=0, taking=0, sub=0, sc=0, tot=0, cur=0;
             long start=0;
-            char user[50], ans[50];
-            strcpy(ans, ""); // default empty
+            char user[MAX_USERNAME_LEN], ans[MAX_QUESTIONS * 2];
+            ans[0] = '\0'; // default empty
             
-            int parsed = sscanf(line + 12, "%d,%49[^,],%d,%ld,%d,%d,%d,%d,%d,%49s",
+            int parsed = sscanf(line + 12, "%d,%63[^,],%d,%ld,%d,%d,%d,%d,%d,%199s",
                    &rid, user, &role, &start, &taking, &sub, &sc, &tot, &cur, ans);
+            
+            user[MAX_USERNAME_LEN - 1] = '\0';
+            ans[MAX_QUESTIONS * 2 - 1] = '\0';
 
             if (parsed >= 9) { // answers can be empty/missing
                for(int i=0; i<ctx->room_count; i++) {
@@ -1064,6 +1219,7 @@ int storage_load_server_state(ServerContext* ctx) {
                            memset(c, 0, sizeof(Client));
                            c->sock = -1; // disconnected
                            strncpy(c->username, user, sizeof(c->username)-1);
+                           c->username[sizeof(c->username)-1] = '\0';
                            c->role = role;
                            c->quiz_start_time = (time_t)start;
                            c->is_taking_quiz = taking;
@@ -1072,6 +1228,7 @@ int storage_load_server_state(ServerContext* ctx) {
                            c->total = tot;
                            c->current_question = cur;
                            strncpy(c->answers, ans, sizeof(c->answers)-1);
+                           c->answers[sizeof(c->answers)-1] = '\0';
                            
                            // Add to room
                            r->clients[r->client_count] = c;

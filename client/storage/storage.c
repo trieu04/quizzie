@@ -6,6 +6,8 @@
 #include <strings.h>
 #include "../include/common.h"
 
+#define CLIENT_DEFAULT_QUESTION_LIMIT 20
+
 static int parse_csv_fields(const char* line, char** out_fields, int max_fields) {
     int count = 0;
     const char* p = line;
@@ -87,25 +89,40 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
             idx[i] = i;
         }
         shuffle_indices(idx, rows_len);
-        int take = rows_len < 20 ? rows_len : 20; // limit to 20 questions
+        int take = rows_len < CLIENT_DEFAULT_QUESTION_LIMIT ? rows_len : CLIENT_DEFAULT_QUESTION_LIMIT;
         questions[0] = '\0'; answers[0] = '\0';
         int count = 0;
+        size_t q_len = 0, a_len = 0;
         for (int k = 0; k < take; ++k) {
             Row* r = &rows[idx[k]];
-            if (count > 0) strcat(questions, ";");
-            strcat(questions, r->q);
-            strcat(questions, "?");
+            
+            // Check buffer space before adding
+            char temp_q[1200];
             char opts_line[1024];
             snprintf(opts_line, sizeof(opts_line), "A.%s|B.%s|C.%s|D.%s", r->A, r->B, r->C, r->D);
-            strcat(questions, opts_line);
-            if (answers[0] != '\0') {
-                strcat(answers, ",");
+            int written = snprintf(temp_q, sizeof(temp_q), "%s%s?%s",
+                                   count > 0 ? ";" : "", r->q, opts_line);
+            
+            if (written > 0 && q_len + (size_t)written < BUFFER_SIZE - 64) {
+                strcat(questions, temp_q);
+                q_len += written;
+            } else {
+                break;
             }
-            char ab[2] = { r->ans, '\0' };
-            strcat(answers, ab);
+            
+            // Add answer with bounds check
+            if (a_len + 2 < 200) {
+                if (count > 0) {
+                    strcat(answers, ",");
+                    a_len++;
+                }
+                char ab[2] = { r->ans, '\0' };
+                strcat(answers, ab);
+                a_len++;
+            } else {
+                break;
+            }
             count++;
-            if (strlen(questions) > BUFFER_SIZE - 64) break;
-            if (strlen(answers) > 200) break;
         }
         for (int i = 0; i < rows_len; ++i) { free(rows[i].q); free(rows[i].A); free(rows[i].B); free(rows[i].C); free(rows[i].D); }
         free(rows); free(idx);
@@ -115,24 +132,41 @@ int storage_load_questions(const char* filename, char* questions, char* answers)
     // Legacy TXT format fallback
     FILE* file = fopen(filename, "r");
     if (!file) return -1;
-    strcpy(questions, "");
-    strcpy(answers, "");
+    questions[0] = '\0';
+    answers[0] = '\0';
     char line[BUFFER_SIZE];
     int question_count = 0;
+    size_t q_len = 0, a_len = 0;
+    
     while (fgets(line, sizeof(line), file)) {
         line[strcspn(line, "\n\r")] = 0;
         if (!line[0]) continue;
         char id[32], q[512], opts[1024], ans[32];
         if (sscanf(line, "%[^;];%[^;];%[^;];%s", id, q, opts, ans) == 4) {
-            if (question_count > 0) strcat(questions, ";");
-            strcat(questions, q);
-            strcat(questions, "?");
-            strcat(questions, opts);
-            if (answers[0] != '\0') {
-                strcat(answers, ",");
+            // Calculate space needed
+            size_t needed = strlen(q) + strlen(opts) + 2; // +2 for separator and ?
+            if (question_count > 0) needed++; // +1 for semicolon
+            
+            if (q_len + needed < BUFFER_SIZE - 64 && a_len + strlen(ans) + 2 < 200) {
+                if (question_count > 0) {
+                    strcat(questions, ";");
+                    q_len++;
+                }
+                strcat(questions, q);
+                strcat(questions, "?");
+                strcat(questions, opts);
+                q_len += strlen(q) + strlen(opts) + 1;
+                
+                if (question_count > 0) {
+                    strcat(answers, ",");
+                    a_len++;
+                }
+                strcat(answers, ans);
+                a_len += strlen(ans);
+                question_count++;
+            } else {
+                break; // Buffer full
             }
-            strcat(answers, ans);
-            question_count++;
         }
     }
     fclose(file);

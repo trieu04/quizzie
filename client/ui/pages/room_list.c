@@ -4,11 +4,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-static GtkWidget *status_label = NULL;
 static GtkWidget *room_list_box = NULL;
 static GtkWidget *room_id_entry = NULL;
 static bool list_requested = false;
 static GtkWidget *loading_label = NULL;
+static int last_room_count = -1; 
 
 static void on_join_room_clicked(GtkWidget *widget, gpointer data) {
     int room_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "room_id"));
@@ -16,25 +16,19 @@ static void on_join_room_clicked(GtkWidget *widget, gpointer data) {
     ClientContext* ctx = (ClientContext*)data;
     
     if (!ctx->connected) {
-        strcpy(ctx->status_message, "Not connected to server!");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
         return;
     }
     
     if (is_my_room) {
         // Rejoin as host
         client_send_message(ctx, "REJOIN_HOST", ctx->username);
-        strcpy(ctx->status_message, "Rejoining as host...");
     } else {
         // Join as participant
         char msg[100];
         sprintf(msg, "%d,%s", room_id, ctx->username);
         client_send_message(ctx, "JOIN_ROOM", msg);
         ctx->current_room_id = room_id;
-        sprintf(ctx->status_message, "Joining room %d...", room_id);
     }
-    
-    if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
     // Don't reset list_requested here - let server response handle navigation
 }
 
@@ -44,32 +38,22 @@ static void on_join_by_id_clicked(GtkWidget *widget, gpointer data) {
     
     const char* room_id_str = gtk_entry_get_text(GTK_ENTRY(room_id_entry));
     if (strlen(room_id_str) == 0) {
-        strcpy(ctx->status_message, "Please enter a Room ID!");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        return;
-    }
-    
-    int room_id = atoi(room_id_str);
-    if (room_id <= 0) {
-        strcpy(ctx->status_message, "Invalid Room ID!");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        return;
-    }
-    
-    if (!ctx->connected) {
-        strcpy(ctx->status_message, "Not connected to server!");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-        return;
-    }
-    
-    char msg[100];
-    sprintf(msg, "%d,%s", room_id, ctx->username);
-    client_send_message(ctx, "JOIN_ROOM", msg);
-    ctx->current_room_id = room_id;
-    sprintf(ctx->status_message, "Joining room %d...", room_id);
-    if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    
-    gtk_entry_set_text(GTK_ENTRY(room_id_entry), "");
+		return;
+	}
+	
+	int room_id = atoi(room_id_str);
+	if (room_id <= 0) {
+		return;
+	}
+	
+	if (!ctx->connected) {
+		return;
+	}
+	
+	char msg[100];
+	sprintf(msg, "%d,%s", room_id, ctx->username);
+	client_send_message(ctx, "JOIN_ROOM", msg);
+	ctx->current_room_id = room_id;
     // Don't reset list_requested here - let server response handle navigation
 }
 
@@ -79,8 +63,6 @@ static void on_refresh_clicked(GtkWidget *widget, gpointer data) {
     
     if (ctx->connected) {
         client_send_message(ctx, "LIST_ROOMS", "");
-        strcpy(ctx->status_message, "Refreshing...");
-        if (status_label) gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
     }
 }
 
@@ -96,6 +78,13 @@ static void on_back_clicked(GtkWidget *widget, gpointer data) {
 
 static void update_room_list(ClientContext* ctx) {
     if (!room_list_box) return;
+    
+    // Only update if room list actually changed
+    if (last_room_count == ctx->room_count) {
+        return;  // No change, don't rebuild UI
+    }
+    
+    last_room_count = ctx->room_count;
     
     // Clear existing items
     GList *children = gtk_container_get_children(GTK_CONTAINER(room_list_box));
@@ -157,11 +146,11 @@ static void update_room_list(ClientContext* ctx) {
 
 GtkWidget* page_room_list_create(ClientContext* ctx) {
     // Reset statics to avoid stale pointers between navigations
-    status_label = NULL;
     room_list_box = NULL;
     room_id_entry = NULL;
     loading_label = NULL;
     list_requested = false;
+    last_room_count = -1;  // Force initial update
 
     GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_style_context_add_class(gtk_widget_get_style_context(page), "page");
@@ -175,11 +164,6 @@ GtkWidget* page_room_list_create(ClientContext* ctx) {
     gtk_label_set_markup(GTK_LABEL(title), "<span size='x-large' weight='bold'>AVAILABLE ROOMS</span>");
     gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
     gtk_box_pack_start(GTK_BOX(page), title, FALSE, FALSE, 10);
-    
-    // Status label
-    status_label = gtk_label_new(ctx->status_message);
-    gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "status-bar");
-    gtk_box_pack_start(GTK_BOX(page), status_label, FALSE, FALSE, 5);
     
     // Toolbar
     GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -239,8 +223,4 @@ GtkWidget* page_room_list_create(ClientContext* ctx) {
 
 void page_room_list_update(ClientContext* ctx) {
     update_room_list(ctx);
-    
-    if (status_label && strlen(ctx->status_message) > 0) {
-        gtk_label_set_text(GTK_LABEL(status_label), ctx->status_message);
-    }
 }

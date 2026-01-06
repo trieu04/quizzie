@@ -1,5 +1,5 @@
 tkadmin:mkadmin:admin
-TrieuTQ:123456:participant
+tkadmin2:mkadmin:admin
 test1:123456:participant
 test2:123456:participant
 test3:123456:participant

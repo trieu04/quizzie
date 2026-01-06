@@ -4,6 +4,27 @@
 #include "../include/room.h"
 #include <sys/epoll.h>
 
+// Message parsing constants
+#define MAX_MESSAGE_TYPE_LEN 32
+#define MAX_MESSAGE_DATA_LEN 1000
+
+// Helper function to find client index by fd
+static int find_client_index(ServerContext* ctx, int fd) {
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].sock == fd) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Helper function to send error message
+static void send_error(int fd, const char* message) {
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "ERROR:%s", message);
+    net_send_to_client(fd, buffer, strlen(buffer));
+}
+
 ServerContext* server_init() {
     ServerContext* ctx = (ServerContext*)malloc(sizeof(ServerContext));
     if (!ctx) {
@@ -43,14 +64,14 @@ static void parse_message(const char* buffer, char* type, char* data) {
     const char* colon = strchr(buffer, ':');
     if (colon) {
         size_t type_len = colon - buffer;
-        if (type_len > 31) type_len = 31; // allow long message types (e.g., LOAD_PRACTICE_QUESTIONS)
+        if (type_len >= MAX_MESSAGE_TYPE_LEN) type_len = MAX_MESSAGE_TYPE_LEN - 1;
         strncpy(type, buffer, type_len);
         type[type_len] = '\0';
-        strncpy(data, colon + 1, 999);
-        data[999] = '\0';
+        strncpy(data, colon + 1, MAX_MESSAGE_DATA_LEN - 1);
+        data[MAX_MESSAGE_DATA_LEN - 1] = '\0';
     } else {
-        strncpy(type, buffer, 31);
-        type[31] = '\0';
+        strncpy(type, buffer, MAX_MESSAGE_TYPE_LEN - 1);
+        type[MAX_MESSAGE_TYPE_LEN - 1] = '\0';
         data[0] = '\0';
     }
 }
@@ -68,6 +89,7 @@ static bool client_is_admin(ServerContext* ctx, int fd) {
 }
 
 static void handle_register(ServerContext* ctx, int fd, const char* data) {
+    (void)ctx; // Context not needed for registration
     char username[64] = "", password[64] = "";
     char* comma = strchr(data, ',');
     if (comma) {
@@ -78,14 +100,35 @@ static void handle_register(ServerContext* ctx, int fd, const char* data) {
         strncpy(password, comma + 1, sizeof(password) - 1);
         password[sizeof(password) - 1] = '\0';
     }
+    
+    // Validate username length
+    if (strlen(username) < 3) {
+        net_send_to_client(fd, "REGISTER_FAILED:Username must be at least 3 characters", 55);
+        return;
+    }
+    
+    // Validate password length
+    if (strlen(password) < 6) {
+        net_send_to_client(fd, "REGISTER_FAILED:Password must be at least 6 characters", 55);
+        return;
+    }
+    
+    // Validate username contains only alphanumeric and underscore
+    for (size_t i = 0; i < strlen(username); i++) {
+        char c = username[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) {
+            net_send_to_client(fd, "REGISTER_FAILED:Username can only contain letters, numbers and underscore", 74);
+            return;
+        }
+    }
 
     int result = storage_register_user(username, password);
     if (result == 0) {
-        net_send_to_client(fd, "REGISTER_SUCCESS:Account created", 33);
+        net_send_to_client(fd, "REGISTER_SUCCESS:Account created successfully", 46);
     } else if (result == -2) {
         net_send_to_client(fd, "REGISTER_FAILED:Username already exists", 40);
     } else {
-        net_send_to_client(fd, "REGISTER_FAILED:Registration error", 35);
+        net_send_to_client(fd, "REGISTER_FAILED:Registration error. Please try again", 53);
     }
 }
 
@@ -102,7 +145,22 @@ static void handle_login(ServerContext* ctx, int fd, const char* data) {
     }
 
     int role = 0;
-    if (storage_verify_login(username, password, &role) == 0) {
+    int login_result = storage_verify_login(username, password, &role);
+    if (login_result == 0) {
+        // Check if this username is already logged in elsewhere
+        for (int i = 0; i < ctx->client_count; i++) {
+            if (ctx->clients[i].sock >= 0 && ctx->clients[i].sock != fd && 
+                strlen(ctx->clients[i].username) > 0 &&
+                strcmp(ctx->clients[i].username, username) == 0) {
+                // Found another active session with same username
+                // Send logout notification to old session
+                net_send_to_client(ctx->clients[i].sock, "FORCE_LOGOUT:Another user logged in with your account", 55);
+                // Close the old connection
+                net_close_client(ctx, ctx->clients[i].sock);
+                break;
+            }
+        }
+
         Client* c = find_client_by_fd(ctx, fd);
         if (c) {
             strncpy(c->username, username, sizeof(c->username) - 1);
@@ -112,42 +170,20 @@ static void handle_login(ServerContext* ctx, int fd, const char* data) {
         snprintf(response, sizeof(response), "LOGIN_SUCCESS:%d", role);
         net_send_to_client(fd, response, strlen(response));
     } else {
-        net_send_to_client(fd, "LOGIN_FAILED:Invalid credentials", 33);
-    }
-}
-
-static void handle_upload_questions(ServerContext* ctx, int fd, const char* data) {
-    if (!client_is_admin(ctx, fd)) {
-        net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
-        return;
-    }
-
-    char filename[128] = "";
-    char* comma = strchr(data, ',');
-    if (comma) {
-        size_t flen = comma - data;
-        if (flen > 127) flen = 127;
-        strncpy(filename, data, flen);
-        filename[flen] = '\0';
-        const char* csv_data = comma + 1;
-
-        if (storage_save_csv_bank(filename, csv_data) == 0) {
-            net_send_to_client(fd, "UPLOAD_SUCCESS:CSV saved", 24);
-        } else {
-            net_send_to_client(fd, "UPLOAD_FAILED:Failed to save", 29);
-        }
-    } else {
-        net_send_to_client(fd, "UPLOAD_FAILED:Invalid format", 29);
+        // Send same message for both wrong password and non-existent user for security
+        net_send_to_client(fd, "LOGIN_FAILED:Username or password is wrong, disconnect", 55);
+        // Disconnect client after failed login
+        net_close_client(ctx, fd);
     }
 }
 
 static void handle_upload_start(ServerContext* ctx, int fd, const char* data) {
     if (!client_is_admin(ctx, fd)) {
-        net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
+        send_error(fd, "Admin access required");
         return;
     }
 
-    char filename[128] = "";
+    char filename[MAX_FILENAME_LEN] = "";
     int total_chunks = 0;
     char* comma = strchr(data, ',');
     if (comma) {
@@ -157,15 +193,7 @@ static void handle_upload_start(ServerContext* ctx, int fd, const char* data) {
         filename[flen] = '\0';
         total_chunks = atoi(comma + 1);
 
-        // Find client index
-        int client_idx = -1;
-        for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].sock == fd) {
-                client_idx = i;
-                break;
-            }
-        }
-
+        int client_idx = find_client_index(ctx, fd);
         if (client_idx >= 0) {
             UploadBuffer* buf = &ctx->upload_buffers[client_idx];
             
@@ -200,21 +228,11 @@ static void handle_upload_chunk(ServerContext* ctx, int fd, const char* data) {
         return;
     }
 
-    int chunk_num = 0;
     char* comma = strchr(data, ',');
     if (comma) {
-        chunk_num = atoi(data);
         const char* chunk_data = comma + 1;
 
-        // Find client index
-        int client_idx = -1;
-        for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].sock == fd) {
-                client_idx = i;
-                break;
-            }
-        }
-
+        int client_idx = find_client_index(ctx, fd);
         if (client_idx >= 0) {
             UploadBuffer* buf = &ctx->upload_buffers[client_idx];
             if (buf->active && buf->data) {
@@ -245,19 +263,12 @@ static void handle_upload_chunk(ServerContext* ctx, int fd, const char* data) {
 
 static void handle_upload_end(ServerContext* ctx, int fd, const char* data) {
     if (!client_is_admin(ctx, fd)) {
-        net_send_to_client(fd, "UPLOAD_FAILED:Admin access required", 36);
+        send_error(fd, "Admin access required");
         return;
     }
+    (void)data; // Unused parameter
 
-    // Find client index
-    int client_idx = -1;
-    for (int i = 0; i < ctx->client_count; i++) {
-        if (ctx->clients[i].sock == fd) {
-            client_idx = i;
-            break;
-        }
-    }
-
+    int client_idx = find_client_index(ctx, fd);
     if (client_idx >= 0) {
         UploadBuffer* buf = &ctx->upload_buffers[client_idx];
         if (buf->active && buf->data) {
@@ -293,11 +304,11 @@ static void handle_upload_end(ServerContext* ctx, int fd, const char* data) {
 
 static void handle_create_room(ServerContext* ctx, int fd, const char* data) {
     if (!client_is_admin(ctx, fd)) {
-        net_send_to_client(fd, "ERROR:Only admins can create rooms", 35);
+        send_error(fd, "Admin access required to create rooms");
         return;
     }
 
-    char username[50] = "";
+    char username[MAX_USERNAME_LEN] = "";
     char config[256] = "";
     char* comma = strchr(data, ',');
     if (comma) {
@@ -306,23 +317,31 @@ static void handle_create_room(ServerContext* ctx, int fd, const char* data) {
         strncpy(username, data, ulen);
         username[ulen] = '\0';
         strncpy(config, comma + 1, sizeof(config) - 1);
+        config[sizeof(config) - 1] = '\0';
     } else {
         strncpy(username, data, sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
     }
     room_create(ctx, fd, username, config);
 }
 
 static void handle_join_room(ServerContext* ctx, int fd, const char* data) {
     int room_id = 0;
-    char username[50] = "";
-    char* comma = strchr(data, ',');
+    char username[MAX_USERNAME_LEN] = "";
+    const char* comma = strchr(data, ',');
     if (comma) {
-        *comma = '\0';
-        room_id = atoi(data);
+        size_t id_len = comma - data;
+        char room_id_str[32];
+        if (id_len > 31) id_len = 31;
+        strncpy(room_id_str, data, id_len);
+        room_id_str[id_len] = '\0';
+        room_id = atoi(room_id_str);
         strncpy(username, comma + 1, sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
     } else {
         room_id = atoi(data);
-        strcpy(username, "Guest");
+        strncpy(username, "Guest", sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
     }
     room_join(ctx, fd, room_id, username);
 }
@@ -358,9 +377,11 @@ static void handle_submit(ServerContext* ctx, int fd, const char* data) {
 static void handle_delete_room(ServerContext* ctx, int fd, const char* data) {
     int room_id = atoi(data);
     if (room_delete(ctx, room_id) == 0) {
-        net_send_to_client(fd, "ROOM_DELETED:Success", 20);
+        char success_msg[64];
+        snprintf(success_msg, sizeof(success_msg), "ROOM_DELETED:%d", room_id);
+        net_send_to_client(fd, success_msg, strlen(success_msg));
     } else {
-        net_send_to_client(fd, "ERROR:Room not found", 20);
+        send_error(fd, "Room not found");
     }
 }
 
@@ -380,12 +401,17 @@ static void handle_save_answer(ServerContext* ctx, int fd, const char* data) {
 static void handle_rejoin_participant(ServerContext* ctx, int fd, const char* data) {
     // Format: REJOIN_PARTICIPANT:room_id,username
     int room_id = 0;
-    char username[50] = "";
-    char* comma = strchr(data, ',');
+    char username[MAX_USERNAME_LEN] = "";
+    const char* comma = strchr(data, ',');
     if (comma) {
-        *comma = '\0';
-        room_id = atoi(data);
+        size_t id_len = comma - data;
+        char room_id_str[32];
+        if (id_len > 31) id_len = 31;
+        strncpy(room_id_str, data, id_len);
+        room_id_str[id_len] = '\0';
+        room_id = atoi(room_id_str);
         strncpy(username, comma + 1, sizeof(username) - 1);
+        username[sizeof(username) - 1] = '\0';
     } else {
         return;
     }
@@ -423,12 +449,14 @@ static void handle_rejoin_participant(ServerContext* ctx, int fd, const char* da
                     // If already taking quiz, resend questions and answers
                     if (c->is_taking_quiz && !c->has_submitted) {
                         char q_msg[BUFFER_SIZE];
-                        snprintf(q_msg, sizeof(q_msg), "QUESTIONS:%d;%s", remaining, room->questions);
-                        net_send_to_client(fd, q_msg, strlen(q_msg));
+                        int qmsg_len = snprintf(q_msg, sizeof(q_msg), "QUESTIONS:%d;%.32700s", remaining, room->questions);
+                        if (qmsg_len > 0 && (size_t)qmsg_len < sizeof(q_msg)) {
+                            net_send_to_client(fd, q_msg, strlen(q_msg));
+                        }
                         
                         if (strlen(c->answers) > 0) {
                             char ans_msg[128];
-                            snprintf(ans_msg, sizeof(ans_msg), "ANSWERS:%s,%d", c->answers, c->current_question);
+                            snprintf(ans_msg, sizeof(ans_msg), "ANSWERS:%.100s,%d", c->answers, c->current_question);
                             net_send_to_client(fd, ans_msg, strlen(ans_msg));
                         }
                     } else if (c->has_submitted) {
@@ -442,7 +470,7 @@ static void handle_rejoin_participant(ServerContext* ctx, int fd, const char* da
             }
         }
     }
-    net_send_to_client(fd, "ERROR:Participant not found in room", 36);
+    send_error(fd, "Participant not found in room");
 }
 
 static void handle_load_practice_questions(ServerContext* ctx, int fd, const char* data) {
@@ -454,47 +482,101 @@ static void handle_load_practice_questions(ServerContext* ctx, int fd, const cha
     // Parse subject,easy,medium,hard
     int parsed = sscanf(data, "%31[^,],%d,%d,%d", subject, &easy_req, &med_req, &hard_req);
     if (parsed < 4) {
-        net_send_to_client(fd, "ERROR:Invalid practice request format", 38);
+        send_error(fd, "Invalid practice request format");
         return;
     }
     
     // Validate individual counts
     if (easy_req < 0 || med_req < 0 || hard_req < 0) {
-        net_send_to_client(fd, "ERROR:Question counts cannot be negative", 40);
+        send_error(fd, "Question counts cannot be negative");
         return;
     }
     
     int total_req = easy_req + med_req + hard_req;
     if (total_req <= 0) {
-        net_send_to_client(fd, "ERROR:Must request at least 1 question", 39);
+        send_error(fd, "Must request at least 1 question");
         return;
     }
     
     if (total_req > MAX_QUESTIONS) {
-        char err_msg[64];
-        snprintf(err_msg, sizeof(err_msg), "ERROR:Maximum %d questions allowed (requested %d)", MAX_QUESTIONS, total_req);
-        net_send_to_client(fd, err_msg, strlen(err_msg));
+        char err_msg[128];
+        snprintf(err_msg, sizeof(err_msg), "Maximum %d questions allowed (requested %d)", MAX_QUESTIONS, total_req);
+        send_error(fd, err_msg);
         return;
     }
     
-    // Load practice bank for subject
+    // Check available questions before loading
     char filename[64];
-    snprintf(filename, sizeof(filename), "practice_bank_%s.csv", subject);
+    snprintf(filename, sizeof(filename), "%s.csv", subject);
     
+    // Count available questions
+    int available_easy = 0, available_med = 0, available_hard = 0, available_total = 0;
+    {
+        const char* paths[] = {"data/questions/practice/", "../data/questions/practice/", 
+                               "../../data/questions/practice/", NULL};
+        FILE* f = NULL;
+        char filepath[512];
+        for (int i = 0; paths[i]; i++) {
+            snprintf(filepath, sizeof(filepath), "%s%s", paths[i], filename);
+            f = fopen(filepath, "r");
+            if (f) break;
+        }
+        
+        if (f) {
+            char line[2048];
+            while (fgets(line, sizeof(line), f)) {
+                line[strcspn(line, "\n\r")] = 0;
+                if (line[0] == '\0' || line[0] == 'i') continue;
+                
+                char* last_comma = strrchr(line, ',');
+                if (last_comma) {
+                    char* diff = last_comma + 1;
+                    while (*diff == ' ' || *diff == '\t') diff++;
+                    
+                    if (strncmp(diff, "easy", 4) == 0) available_easy++;
+                    else if (strncmp(diff, "hard", 4) == 0) available_hard++;
+                    else if (strncmp(diff, "medium", 6) == 0) available_med++;
+                }
+            }
+            fclose(f);
+            available_total = available_easy + available_med + available_hard;
+        }
+    }
+    
+    // Validate requests against available
+    if (easy_req > available_easy || med_req > available_med || hard_req > available_hard) {
+        char err_msg[256];
+        snprintf(err_msg, sizeof(err_msg), 
+                 "Not enough questions. Available: Easy=%d Medium=%d Hard=%d. Requested: Easy=%d Medium=%d Hard=%d",
+                 available_easy, available_med, available_hard, easy_req, med_req, hard_req);
+        send_error(fd, err_msg);
+        return;
+    }
+    
+    if (available_total == 0) {
+        char err_msg[128];
+        snprintf(err_msg, sizeof(err_msg), "No questions available for subject '%s'", subject);
+        send_error(fd, err_msg);
+        return;
+    }
+    
+    // Load practice bank for subject (simple filename format)
     char questions[BUFFER_SIZE];
     char answers[MAX_QUESTIONS + 1];
     
     if (storage_load_practice_questions(filename, easy_req, med_req, hard_req, questions, answers) != 0) {
         char err_msg[128];
-        snprintf(err_msg, sizeof(err_msg), "ERROR:Failed to load practice questions for subject '%s'", subject);
-        net_send_to_client(fd, err_msg, strlen(err_msg));
+        snprintf(err_msg, sizeof(err_msg), "Failed to load practice questions for subject '%s'", subject);
+        send_error(fd, err_msg);
         return;
     }
     
     // Send back practice questions with answers
-    char response[BUFFER_SIZE + 64];
-    snprintf(response, sizeof(response), "PRACTICE_QUESTIONS:%s,%s", questions, answers);
-    net_send_to_client(fd, response, strlen(response));
+    char response[BUFFER_SIZE + 128];
+    int resp_len = snprintf(response, sizeof(response), "PRACTICE_QUESTIONS:%.32700s,%.100s", questions, answers);
+    if (resp_len > 0 && (size_t)resp_len < sizeof(response)) {
+        net_send_to_client(fd, response, strlen(response));
+    }
 }
 
 static void dispatch_message(ServerContext* ctx, int fd, const Message* msg) {
@@ -502,8 +584,6 @@ static void dispatch_message(ServerContext* ctx, int fd, const Message* msg) {
         handle_register(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "LOGIN") == 0) {
         handle_login(ctx, fd, msg->data);
-    } else if (strcmp(msg->type, "UPLOAD_QUESTIONS") == 0) {
-        handle_upload_questions(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "UPLOAD_START") == 0) {
         handle_upload_start(ctx, fd, msg->data);
     } else if (strcmp(msg->type, "UPLOAD_CHUNK") == 0) {
@@ -543,7 +623,16 @@ static void dispatch_message(ServerContext* ctx, int fd, const Message* msg) {
             snprintf(response, sizeof(response), "QUESTION_FILES:%s", buffer);
             net_send_to_client(fd, response, strlen(response));
         } else {
-            net_send_to_client(fd, "ERROR:Failed to list files", 24);
+            send_error(fd, "Failed to list question files");
+        }
+    } else if (strcmp(msg->type, "GET_PRACTICE_SUBJECTS") == 0) {
+        char buffer[1024];
+        if (storage_get_practice_subjects(buffer, sizeof(buffer)) == 0) {
+            char response[1100];
+            snprintf(response, sizeof(response), "PRACTICE_SUBJECTS:%s", buffer);
+            net_send_to_client(fd, response, strlen(response));
+        } else {
+            send_error(fd, "Failed to list practice subjects");
         }
     }
 }
@@ -562,6 +651,7 @@ void server_run(ServerContext* ctx) {
 
     struct epoll_event events[MAX_CLIENTS];
     time_t last_save_time = time(NULL);
+    time_t last_timer_check = time(NULL);
 
     while (ctx->running) {
         // Autosave every 10 seconds
@@ -570,6 +660,12 @@ void server_run(ServerContext* ctx) {
             storage_save_server_state(ctx);
             last_save_time = now;
             // LOG_INFO("Autosaved server state"); // constant logging might be spammy, maybe only on error?
+        }
+        
+        // Check room timers every second
+        if (now - last_timer_check >= 1) {
+            room_check_timers(ctx);
+            last_timer_check = now;
         }
 
         int event_count = epoll_wait(ctx->epoll_fd, events, MAX_CLIENTS, 1000); // 1s timeout

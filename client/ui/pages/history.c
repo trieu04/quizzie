@@ -137,8 +137,8 @@ static void load_history(ClientContext* ctx) {
         }
         
         // Check if file starts with username_
-        char prefix[64];
-        snprintf(prefix, sizeof(prefix), "%s_", ctx->username);
+        char prefix[MAX_USERNAME_LEN + 2];
+        snprintf(prefix, sizeof(prefix), "%.63s_", ctx->username);
         if (strncmp(entry->d_name, prefix, strlen(prefix)) != 0) {
             continue;
         }
@@ -187,6 +187,7 @@ static bool entry_matches_filter(HistoryEntry* entry) {
 }
 
 static void rebuild_history_list(ClientContext* ctx) {
+    (void)ctx; // Unused parameter
     if (!history_list_box) return;
     
     // Clear existing widgets
@@ -319,32 +320,44 @@ GtkWidget* page_history_create(ClientContext* ctx) {
     GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(main_box), "page");
     
-    // Header
-    GtkWidget *header = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_margin_top(header, 20);
-    gtk_widget_set_margin_bottom(header, 20);
+    // Top Toolbar
+    GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_margin_top(toolbar, 10);
+    gtk_widget_set_margin_bottom(toolbar, 10);
     
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold'>Test History</span>");
+    // Title Section
+    GtkWidget *title_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *title = gtk_label_new("Test History");
+    gtk_widget_set_halign(title, GTK_ALIGN_START);
     gtk_style_context_add_class(gtk_widget_get_style_context(title), "header-title");
-    gtk_box_pack_start(GTK_BOX(header), title, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(title_box), title, FALSE, FALSE, 0);
     
-    char subtitle[128];
-    snprintf(subtitle, sizeof(subtitle), "<span size='large'>Results for %s</span>", ctx->username);
-    GtkWidget *subtitle_label = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(subtitle_label), subtitle);
-    gtk_style_context_add_class(gtk_widget_get_style_context(subtitle_label), "header-subtitle");
-    gtk_box_pack_start(GTK_BOX(header), subtitle_label, FALSE, FALSE, 0);
+    char subtitle_text[128];
+    snprintf(subtitle_text, sizeof(subtitle_text), "Results for %s", ctx->username);
+    GtkWidget *subtitle = gtk_label_new(subtitle_text);
+    gtk_widget_set_halign(subtitle, GTK_ALIGN_START);
+    gtk_style_context_add_class(gtk_widget_get_style_context(subtitle), "page-subtitle");
+    gtk_box_pack_start(GTK_BOX(title_box), subtitle, FALSE, FALSE, 0);
     
-    gtk_box_pack_start(GTK_BOX(main_box), header, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(toolbar), title_box, TRUE, TRUE, 0);
+    
+    // Back Button in Toolbar
+    GtkWidget *back_btn = gtk_button_new_with_label("Back to Dashboard");
+    gtk_style_context_add_class(gtk_widget_get_style_context(back_btn), "btn-ghost");
+    g_signal_connect(back_btn, "clicked", G_CALLBACK(on_back_to_dashboard_clicked), ctx);
+    gtk_box_pack_end(GTK_BOX(toolbar), back_btn, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(main_box), toolbar, FALSE, FALSE, 0);
     
     // Filter section
     GtkWidget *filter_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    gtk_widget_set_margin_start(filter_box, 30);
-    gtk_widget_set_margin_end(filter_box, 30);
-    gtk_widget_set_margin_bottom(filter_box, 10);
+    gtk_widget_set_margin_start(filter_box, 10);
+    gtk_widget_set_margin_end(filter_box, 10);
+    gtk_widget_set_margin_bottom(filter_box, 15);
+    gtk_widget_set_halign(filter_box, GTK_ALIGN_START); // Align left
     
     GtkWidget *filter_label = gtk_label_new("Filter by type:");
+    gtk_style_context_add_class(gtk_widget_get_style_context(filter_label), "text-muted");
     gtk_box_pack_start(GTK_BOX(filter_box), filter_label, FALSE, FALSE, 0);
     
     filter_type_combo = GTK_WIDGET(gtk_combo_box_text_new());
@@ -361,8 +374,8 @@ GtkWidget* page_history_create(ClientContext* ctx) {
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
                                    GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_widget_set_margin_start(scrolled, 30);
-    gtk_widget_set_margin_end(scrolled, 30);
+    gtk_widget_set_margin_start(scrolled, 10);
+    gtk_widget_set_margin_end(scrolled, 10);
     gtk_widget_set_margin_bottom(scrolled, 20);
     
     history_list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -373,19 +386,7 @@ GtkWidget* page_history_create(ClientContext* ctx) {
     // Build the history list
     rebuild_history_list(ctx);
     
-    // Back button
-    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    gtk_widget_set_margin_start(button_box, 30);
-    gtk_widget_set_margin_end(button_box, 30);
-    gtk_widget_set_margin_bottom(button_box, 20);
-    
-    GtkWidget *back_btn = gtk_button_new_with_label("Back to Dashboard");
-    gtk_widget_set_size_request(back_btn, 200, 45);
-    g_signal_connect(back_btn, "clicked", G_CALLBACK(on_back_to_dashboard_clicked), ctx);
-    gtk_style_context_add_class(gtk_widget_get_style_context(back_btn), "btn-primary");
-    gtk_box_pack_start(GTK_BOX(button_box), back_btn, FALSE, FALSE, 0);
-    
-    gtk_box_pack_start(GTK_BOX(main_box), button_box, FALSE, FALSE, 0);
+    // Removed bottom button box as it's now in toolbar
     
     return main_box;
 }

@@ -52,10 +52,10 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 ### 3.1. Yêu cầu chức năng (Functional Requirements)
 
 #### 3.1.1. Quản lý tài khoản và Phiên làm việc
-- **REQ-AUTH-01 (Đăng nhập)**: Người dùng đăng nhập vào hệ thống để truy cập các chức năng.
-- **REQ-AUTH-02 (Đăng xuất)**: Người dùng có thể đăng xuất khỏi hệ thống an toàn, giải phóng kết nối.
-- **REQ-AUTH-03 (Tái kết nối)**: Hệ thống hỗ trợ cơ chế tự động kết nối lại (Rejoin) nếu mất kết nối mạng tạm thời.
-- **REQ-AUTH-04 (Phiên duy nhất)**: Một tài khoản chỉ được phép đăng nhập trên một thiết bị tại một thời điểm. Nếu đăng nhập mới thành công, phiên cũ sẽ bị ngắt kết nối.
+- **REQ-AUTH-01 (Đăng ký)**: Người dùng có thể đăng ký tài khoản mới với tên đăng nhập (duy nhất) và mật khẩu.
+- **REQ-AUTH-02 (Đăng nhập)**: Người dùng đăng nhập vào hệ thống để truy cập các chức năng.
+- **REQ-AUTH-03 (Đăng xuất)**: Người dùng có thể đăng xuất khỏi hệ thống an toàn, giải phóng kết nối.
+- **REQ-AUTH-04 (Tái kết nối)**: Hệ thống hỗ trợ cơ chế tự động kết nối lại (Rejoin) nếu mất kết nối mạng tạm thời.
 
 #### 3.1.2. Quản lý Phòng thi (Dành cho Admin)
 - **REQ-ROOM-01 (Tạo phòng)**: Admin có thể tạo phòng thi mới, thiết lập tên phòng, thời gian bắt đầu, thời gian kết thúc (hoặc thời lượng).

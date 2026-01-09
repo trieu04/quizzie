@@ -68,3 +68,6 @@ directories:
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
+
+test: all
+	python3 tests/runner.py

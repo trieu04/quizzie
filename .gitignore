@@ -50,3 +50,6 @@ obj/
 # AI assistant
 .agent/
 .shared/
+
+## Python test
+__pycache__/

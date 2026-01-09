@@ -58,10 +58,11 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 - **REQ-AUTH-04 (Tái kết nối)**: Hệ thống hỗ trợ cơ chế tự động kết nối lại (Rejoin) nếu mất kết nối mạng tạm thời.
 
 #### 3.1.2. Quản lý Phòng thi (Dành cho Admin)
-- **REQ-ROOM-01 (Tạo phòng)**: Admin có thể tạo phòng thi mới, thiết lập tên phòng, thời gian bắt đầu, thời gian kết thúc (hoặc thời lượng).
+- **REQ-ROOM-01 (Tạo phòng)**: Admin có thể tạo phòng thi mới, thiết lập tên phòng, thời gian bắt đầu, thời gian kết thúc (hoặc thời lượng), số lượng câu hỏi, số lần thi cho phép.
 - **REQ-ROOM-02 (Cấu hình đề thi)**: Admin chọn bộ câu hỏi từ ngân hàng câu hỏi có sẵn hoặc tải lên file CSV mới.
-- **REQ-ROOM-03 (Quản lý phòng)**: Admin có thể xem danh sách phòng, xóa phòng đã tạo.
-- **REQ-ROOM-04 (Upload câu hỏi)**: Cho phép upload file ngân hàng câu hỏi (định dạng CSV) lên Server. Hỗ trợ chia nhỏ dữ liệu (chunking) khi upload.
+- **REQ-ROOM-03 (Quản lý phòng)**: Admin có thể xem danh sách phòng, xem chi tiết thống kê và xóa phòng đã tạo.
+- **REQ-ROOM-04 (Quản lý câu hỏi)**: Cho phép Import (CSV)/Xem danh sách/Chỉnh sửa/Xóa ngân hàng câu hỏi. Client parse file CSV và gửi dữ liệu dạng JSON lên Server.
+- **REQ-ROOM-05 (Xem chi tiết phòng)**: Admin có thể xem chi tiết cấu hình phòng, trạng thái hiện tại, thống kê tổng quát và danh sách kết quả của các thí sinh đã tham gia.
 
 #### 3.1.3. Tham gia thi (Dành cho Participant)
 - **REQ-QUIZ-01 (Xem danh sách phòng)**: Người dùng xem được danh sách các phòng thi đang mở, trạng thái phòng (Waiting, Running).

@@ -1,9 +1,9 @@
-#include "ui.h"
 #include "net.h"
+#include "ui.h"
 
-int main(int argc, char *argv[]) {
-    ui_init(&argc, &argv);
-    ui_show_login();
-    gtk_main();
-    return 0;
+int main(int argc, char* argv[]) {
+  ui_init(&argc, &argv);
+  ui_show_login();
+  gtk_main();
+  return 0;
 }

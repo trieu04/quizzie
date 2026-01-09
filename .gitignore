@@ -53,3 +53,5 @@ obj/
 
 ## Python test
 __pycache__/
+
+data/

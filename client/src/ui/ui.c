@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "ui_login.h"
 #include "ui_home.h"
+#include "ui_admin.h"
 #include "net.h"
 #include "protocol.h"
 #include "window_manager.h"
@@ -21,6 +22,10 @@ static void update_status(const char *msg);
 void ui_init(int *argc, char ***argv) {
     gtk_init(argc, argv);
     printf("UI initialized.\n");
+}
+
+int ui_get_socket() {
+    return sock;
 }
 
 static void transition_window() {
@@ -156,10 +161,25 @@ static void handle_server_message(char *msg_type, cJSON *payload) {
     
     if (strcmp(msg_type, MSG_TYPE_RES) == 0) {
          if (strcmp(msg, "Login successful") == 0) {
-             ui_show_home(current_username);
+             cJSON *data = cJSON_GetObjectItem(payload, JSON_KEY_DATA);
+             cJSON *role_item = cJSON_GetObjectItem(data, "role");
+             const char *role = role_item ? role_item->valuestring : "participant";
+             
+             if (strcmp(role, "admin") == 0) {
+                 ui_show_admin_dashboard(&window, &status_label, current_username);
+             } else {
+                 ui_show_home(current_username);
+             }
              g_timeout_add(5000, send_heartbeat, NULL);
          } else {
-             show_message(msg, GTK_MESSAGE_INFO);
+             // Check if it is a room list response (data is array)
+             cJSON *data = cJSON_GetObjectItem(payload, JSON_KEY_DATA);
+             if (data && cJSON_IsArray(data)) {
+                 ui_admin_update_room_list(data);
+             } 
+             else if (msg && strlen(msg) > 0) {
+                 show_message(msg, GTK_MESSAGE_INFO);
+             }
          }
     } else if (strcmp(msg_type, MSG_TYPE_ERR) == 0) {
          show_message(msg, GTK_MESSAGE_ERROR);

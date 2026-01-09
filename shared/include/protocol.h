@@ -13,6 +13,17 @@
 #define ACTION_LOGIN "LOGIN"
 #define ACTION_REGISTER "REGISTER"
 #define ACTION_LOGOUT "LOGOUT"
+#define ACTION_CREATE_ROOM "CREATE_ROOM"
+#define ACTION_LIST_ROOMS "LIST_ROOMS"
+#define ACTION_IMPORT_QUESTIONS "IMPORT_QUESTIONS"
+#define ACTION_LIST_QUESTION_BANKS "LIST_QUESTION_BANKS"
+#define ACTION_GET_QUESTION_BANK "GET_QUESTION_BANK"
+#define ACTION_GET_QUESTION_BANK "GET_QUESTION_BANK"
+#define ACTION_UPDATE_QUESTION_BANK "UPDATE_QUESTION_BANK"
+#define ACTION_DELETE_QUESTION_BANK "DELETE_QUESTION_BANK"
+#define ACTION_GET_ROOM_STATS "GET_ROOM_STATS"
+#define ACTION_CLOSE_ROOM "CLOSE_ROOM"
+#define ACTION_DELETE_ROOM "DELETE_ROOM"
 
 // JSON Field Keys
 #define JSON_KEY_ACTION "action"
@@ -28,8 +39,9 @@
 #define MAX_PAYLOAD_SIZE (128 * 1024)
 
 typedef struct {
-    uint32_t total_length; // Includes header size + payload size (Network Byte Order)
-    char msg_type[3];
+  uint32_t
+      total_length;  // Includes header size + payload size (Network Byte Order)
+  char msg_type[3];
 } __attribute__((packed)) PacketHeader;
 
 #endif

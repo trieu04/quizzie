@@ -3,24 +3,23 @@
 
 #include "cJSON.h"
 
-typedef struct {
-  char id[32];
-  char name[64];
-  long start_time;
-  long end_time;
-  char question_bank_id[32];
-  char status[16];  // "OPEN" or "CLOSED"
-  int num_questions;
-  int allowed_attempts;
+typedef struct
+{
+    char id[32];
+    char name[64];
+    long start_time;
+    long end_time;
+    char question_bank_id[32];
+    char status[16]; // "OPEN" or "CLOSED"
+    int num_questions;
+    int allowed_attempts;
 } Room;
 
 // User Management
 void storage_init();
 int storage_load_users(const char* filename);
 int storage_check_credentials(const char* username, const char* password);
-int storage_add_user(const char* username,
-                     const char* password,
-                     const char* role);
+int storage_add_user(const char* username, const char* password, const char* role);
 int storage_user_exists(const char* username);
 const char* storage_get_role(const char* username);
 
@@ -32,11 +31,12 @@ int storage_delete_room(const char* room_id);
 cJSON* storage_get_room(const char* room_id);
 
 // Result Management
-typedef struct {
-  char room_id[32];
-  char username[32];
-  int score;
-  long timestamp;
+typedef struct
+{
+    char room_id[32];
+    char username[32];
+    int score;
+    long timestamp;
 } RoomResult;
 
 int storage_save_result(const RoomResult* result);

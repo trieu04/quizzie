@@ -1,13 +1,14 @@
 #include "net.h"
+#include <arpa/inet.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <errno.h>
 
-int net_listen(int port) {
+int net_listen(int port)
+{
     int server_fd;
     struct sockaddr_in address;
     int opt = 1;
@@ -30,7 +31,7 @@ int net_listen(int port) {
     address.sin_port = htons(port);
 
     // Bind
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind failed");
         close(server_fd);
         return -1;
@@ -46,9 +47,11 @@ int net_listen(int port) {
     return server_fd;
 }
 
-int send_packet(int sock, const char *msg_type, cJSON *payload) {
-    char *json_str = cJSON_PrintUnformatted(payload);
-    if (!json_str) return -1;
+int send_packet(int sock, const char* msg_type, cJSON* payload)
+{
+    char* json_str = cJSON_PrintUnformatted(payload);
+    if (!json_str)
+        return -1;
 
     uint32_t payload_len = strlen(json_str);
     uint32_t total_len = HEADER_SIZE + payload_len;
@@ -72,34 +75,39 @@ int send_packet(int sock, const char *msg_type, cJSON *payload) {
     return 0;
 }
 
-int receive_packet(int sock, char *msg_type_out, cJSON **payload_out) {
+int receive_packet(int sock, char* msg_type_out, cJSON** payload_out)
+{
     PacketHeader header;
     ssize_t bytes_read = recv(sock, &header, HEADER_SIZE, MSG_WAITALL);
-    if (bytes_read != HEADER_SIZE) return -1;
+    if (bytes_read != HEADER_SIZE)
+        return -1;
 
     uint32_t total_len = ntohl(header.total_length);
-    if (total_len < HEADER_SIZE) return -2;
+    if (total_len < HEADER_SIZE)
+        return -2;
 
     uint32_t payload_len = total_len - HEADER_SIZE;
-    if (payload_len > MAX_PAYLOAD_SIZE) return -2;
+    if (payload_len > MAX_PAYLOAD_SIZE)
+        return -2;
 
     strncpy(msg_type_out, header.msg_type, 3);
     msg_type_out[3] = '\0';
 
-    char *buffer = calloc(1, payload_len + 1);
-    if (!buffer) return -1;
+    char* buffer = calloc(1, payload_len + 1);
+    if (!buffer)
+        return -1;
 
     bytes_read = recv(sock, buffer, payload_len, MSG_WAITALL);
     if (bytes_read != (ssize_t)payload_len) {
         free(buffer);
         return -1;
     }
-    
+
     // calloc already ensures null terminator
     buffer[payload_len] = '\0';
 
     *payload_out = cJSON_Parse(buffer);
     free(buffer);
 
-    return (*payload_out) ? 0 : -3; 
+    return (*payload_out) ? 0 : -3;
 }

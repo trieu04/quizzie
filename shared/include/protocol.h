@@ -38,10 +38,10 @@
 #define HEADER_SIZE 7
 #define MAX_PAYLOAD_SIZE (128 * 1024)
 
-typedef struct {
-  uint32_t
-      total_length;  // Includes header size + payload size (Network Byte Order)
-  char msg_type[3];
+typedef struct
+{
+    uint32_t total_length; // Includes header size + payload size (Network Byte Order)
+    char msg_type[3];
 } __attribute__((packed)) PacketHeader;
 
 #endif

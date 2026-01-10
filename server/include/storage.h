@@ -13,6 +13,7 @@ typedef struct
     char status[16]; // "OPEN" or "CLOSED"
     int num_questions;
     int allowed_attempts;
+    int duration; // minutes
 } Room;
 
 // User Management

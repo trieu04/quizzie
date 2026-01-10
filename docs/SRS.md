@@ -65,17 +65,13 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 - **REQ-ROOM-05 (Xem chi tiết phòng)**: Admin có thể xem chi tiết cấu hình phòng, trạng thái hiện tại, thống kê tổng quát và danh sách kết quả của các thí sinh đã tham gia.
 
 #### 3.1.3. Tham gia thi (Dành cho Participant)
-- **REQ-QUIZ-01 (Xem danh sách phòng)**: Người dùng xem được danh sách các phòng thi đang mở, trạng thái phòng (Waiting, Running).
-- **REQ-QUIZ-02 (Vào phòng)**: Người dùng tham gia vào một phòng chờ trước khi bài thi bắt đầu.
+- **REQ-QUIZ-01 (Xem danh sách phòng)**: Người dùng xem được danh sách các phòng thi, trạng thái phòng (Waiting, Open, Closed). Chỉ tham gia được các phòng Open.
+- **REQ-QUIZ-02 (Vào phòng thi)**: Người dùng tham gia vào phòng thi (trạng thái Open) và bắt đầu làm bài ngay lập tức.
 - **REQ-QUIZ-03 (Làm bài thi)**:
   - Hiển thị câu hỏi và 4 đáp án lựa chọn.
   - Đồng hồ đếm ngược thời gian còn lại.
   - Gửi đáp án đã chọn lên Server ngay lập tức để lưu trạng thái.
 - **REQ-QUIZ-04 (Nộp bài)**: Người dùng có thể nộp bài trước khi hết giờ. Hệ thống tự động thu bài khi hết giờ.
-
-#### 3.1.4. Chấm điểm và Xếp hạng
-- **REQ-RANK-01 (Tính điểm)**: Server tự động tính điểm dựa trên số câu trả lời đúng.
-- **REQ-RANK-02 (Bảng xếp hạng)**: Hiển thị bảng xếp hạng (Leaderboard) thời gian thực hoặc sau khi kết thúc bài thi, bao gồm tên người dùng và điểm số.
 
 ### 3.2. Yêu cầu phi chức năng (Non-functional Requirements)
 
@@ -97,7 +93,7 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 - Sử dụng thư viện **GTK+ 3.0**.
 - **Màn hình Login**: 2 trường input (Username, Password) và nút Login/Register.
 - **Màn hình Dashboard**: Danh sách phòng thi (List View), các nút chức năng (Create, Join, Output).
-- **Màn hình Thi (Quiz)**: Khu vực hiển thị nội dung câu hỏi, 4 nút hoặc Radio button cho đáp án, thanh tiến trình hoặc đồng hồ đếm ngược.
+- **Màn hình Thi (Exam)**: Khu vực hiển thị nội dung câu hỏi, 4 nút hoặc Radio button cho đáp án, thanh tiến trình hoặc đồng hồ đếm ngược.
 
 #### 3.3.2. Giao diện giao tiếp (Communication Interface)
 - Protocol: Binary Header + JSON Payload.

@@ -327,6 +327,7 @@ void handle_create_room(int client_idx, cJSON* data)
     cJSON* bank = cJSON_GetObjectItem(data, "question_bank_id");
     cJSON* num_q = cJSON_GetObjectItem(data, "num_questions");
     cJSON* attempts = cJSON_GetObjectItem(data, "allowed_attempts");
+    cJSON* duration = cJSON_GetObjectItem(data, "duration");
 
     if (!cJSON_IsString(name) || !cJSON_IsNumber(start) || !cJSON_IsNumber(end) || !cJSON_IsString(bank)) {
         send_error(client_idx, "Invalid room data");
@@ -334,6 +335,7 @@ void handle_create_room(int client_idx, cJSON* data)
     }
 
     Room room;
+    memset(&room, 0, sizeof(room));
     snprintf(room.id, sizeof(room.id), "room_%ld", time(NULL));
     strncpy(room.name, name->valuestring, sizeof(room.name) - 1);
     room.start_time = (long)start->valuedouble;
@@ -342,6 +344,7 @@ void handle_create_room(int client_idx, cJSON* data)
     strcpy(room.status, "OPEN");
     room.num_questions = num_q ? num_q->valueint : 10;
     room.allowed_attempts = attempts ? attempts->valueint : 1;
+    room.duration = duration ? duration->valueint : 0;
 
     if (storage_save_room(&room) == 0) {
         send_success(client_idx, "Room created");

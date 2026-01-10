@@ -173,6 +173,7 @@ int storage_save_room(const Room* room)
     cJSON_AddStringToObject(room_obj, "status", room->status);
     cJSON_AddNumberToObject(room_obj, "num_questions", room->num_questions);
     cJSON_AddNumberToObject(room_obj, "allowed_attempts", room->allowed_attempts);
+    cJSON_AddNumberToObject(room_obj, "duration", room->duration);
 
     cJSON_AddItemToArray(root, room_obj);
 

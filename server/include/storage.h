@@ -37,11 +37,14 @@ typedef struct
     char room_id[32];
     char username[32];
     int score;
+    int num_questions;
+    int correct_count;
     long timestamp;
 } RoomResult;
 
 int storage_save_result(const RoomResult* result);
 int storage_get_room_results(const char* room_id, cJSON* results_array);
+int storage_get_user_attempts(const char* room_id, const char* username);
 
 // Question Management
 int storage_save_question_bank(const char* bank_name, cJSON* questions);
@@ -49,5 +52,21 @@ int storage_list_question_banks(cJSON* banks_array);
 int storage_get_question_bank(const char* bank_id, cJSON** questions);
 int storage_update_question_bank(const char* bank_id, cJSON* questions);
 int storage_delete_question_bank(const char* bank_id);
+
+// Exam Session Management
+typedef struct
+{
+    char room_id[32];
+    char username[32];
+    cJSON* questions; // Array of questions assigned to this user
+    cJSON* answers;   // Array of user answers (indices)
+    long start_time;
+    int is_finished;
+} ExamSession;
+
+int storage_save_exam_session(const ExamSession* session);
+ExamSession* storage_get_exam_session(const char* room_id, const char* username);
+int storage_delete_exam_session(const char* room_id, const char* username);
+void storage_free_exam_session(ExamSession* session);
 
 #endif

@@ -2,8 +2,10 @@
 #include "net.h"
 #include "protocol.h"
 #include "ui_admin.h"
+#include "ui_exam.h"
 #include "ui_home.h"
 #include "ui_login.h"
+#include "ui_room_detail.h"
 #include "window_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +15,7 @@ static GtkWidget* window = NULL; // Main active window
 static GtkWidget* status_label = NULL;
 static int sock = -1;
 static char current_username[32];
+static char current_room_id[32];
 static guint network_watch_id = 0;
 
 // Forward declarations
@@ -28,6 +31,11 @@ void ui_init(int* argc, char*** argv)
 int ui_get_socket()
 {
     return sock;
+}
+
+const char* ui_get_username()
+{
+    return current_username;
 }
 
 static void transition_window()
@@ -50,6 +58,20 @@ void ui_show_home(const char* username)
 {
     transition_window();
     ui_show_home_window(&window, &status_label, username);
+}
+
+void ui_show_room_detail(const char* room_id)
+{
+    transition_window();
+    strncpy(current_room_id, room_id, sizeof(current_room_id) - 1);
+    current_room_id[sizeof(current_room_id) - 1] = '\0';
+    ui_show_room_detail_window(&window, room_id, current_username);
+}
+
+void ui_show_exam(const char* room_id, cJSON* questions, int* answers, long start_time, int duration_minutes)
+{
+    transition_window();
+    ui_show_exam_window(&window, room_id, questions, answers, start_time, duration_minutes);
 }
 
 static void show_message(const char* msg, GtkMessageType type)
@@ -173,8 +195,9 @@ static void handle_server_message(char* msg_type, cJSON* payload)
     const char* msg = message_item ? message_item->valuestring : "";
 
     if (strcmp(msg_type, MSG_TYPE_RES) == 0) {
+        cJSON* data = cJSON_GetObjectItem(payload, JSON_KEY_DATA);
+
         if (strcmp(msg, "Login successful") == 0) {
-            cJSON* data = cJSON_GetObjectItem(payload, JSON_KEY_DATA);
             cJSON* role_item = cJSON_GetObjectItem(data, "role");
             const char* role = role_item ? role_item->valuestring : "participant";
 
@@ -184,14 +207,59 @@ static void handle_server_message(char* msg_type, cJSON* payload)
                 ui_show_home(current_username);
             }
             g_timeout_add(5000, send_heartbeat, NULL);
-        } else {
-            // Check if it is a room list response (data is array)
-            cJSON* data = cJSON_GetObjectItem(payload, JSON_KEY_DATA);
-            if (data && cJSON_IsArray(data)) {
+        } else if (data) {
+            // Handle different response types based on data structure
+
+            // Check if it's a room list (array of rooms)
+            if (cJSON_IsArray(data)) {
+                // Could be admin room list or participant room list
                 ui_admin_update_room_list(data);
+                home_update_room_list(data);
+            }
+            // Check if it's a JOIN_ROOM response (questions array)
+            else if (cJSON_HasObjectItem(data, "questions")) {
+                cJSON* questions = cJSON_GetObjectItem(data, "questions");
+                cJSON* answers = cJSON_GetObjectItem(data, "answers");
+                cJSON* start_time = cJSON_GetObjectItem(data, "start_time");
+                cJSON* duration = cJSON_GetObjectItem(data, "duration");
+
+                if (questions && answers && start_time && duration) {
+                    int num_q = cJSON_GetArraySize(questions);
+                    int* answer_array = malloc(sizeof(int) * num_q);
+                    for (int i = 0; i < num_q; i++) {
+                        cJSON* ans = cJSON_GetArrayItem(answers, i);
+                        answer_array[i] = ans && cJSON_IsNumber(ans) ? (int)ans->valuedouble : -1;
+                    }
+
+                    ui_show_exam(current_room_id, questions, answer_array, (long)start_time->valuedouble, duration->valueint);
+                }
+            }
+            // Check if it's a room stats response
+            else if (cJSON_HasObjectItem(data, "results")) {
+                // Update room detail view
+                extern void room_detail_update_info(cJSON * room_data);
+                room_detail_update_info(data);
+            }
+            // Check if it's an exam result response
+            else if (cJSON_HasObjectItem(data, "score")) {
+                cJSON* score = cJSON_GetObjectItem(data, "score");
+                cJSON* correct_count = cJSON_GetObjectItem(data, "correct_count");
+                cJSON* total_questions = cJSON_GetObjectItem(data, "total_questions");
+
+                char result_msg[256];
+                snprintf(result_msg, sizeof(result_msg),
+                    "Exam Finished!\n\nScore: %d%%\nCorrect: %d/%d",
+                    score ? score->valueint : 0,
+                    correct_count ? correct_count->valueint : 0,
+                    total_questions ? total_questions->valueint : 0);
+
+                show_message(result_msg, GTK_MESSAGE_INFO);
+                ui_show_home(current_username);
             } else if (msg && strlen(msg) > 0) {
                 show_message(msg, GTK_MESSAGE_INFO);
             }
+        } else if (msg && strlen(msg) > 0) {
+            show_message(msg, GTK_MESSAGE_INFO);
         }
     } else if (strcmp(msg_type, MSG_TYPE_ERR) == 0) {
         show_message(msg, GTK_MESSAGE_ERROR);

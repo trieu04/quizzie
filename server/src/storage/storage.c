@@ -435,6 +435,8 @@ int storage_save_result(const RoomResult* result)
     cJSON* res_obj = cJSON_CreateObject();
     cJSON_AddStringToObject(res_obj, "username", result->username);
     cJSON_AddNumberToObject(res_obj, "score", result->score);
+    cJSON_AddNumberToObject(res_obj, "num_questions", result->num_questions);
+    cJSON_AddNumberToObject(res_obj, "correct_count", result->correct_count);
     cJSON_AddNumberToObject(res_obj, "timestamp", result->timestamp);
 
     cJSON_AddItemToArray(root, res_obj);
@@ -517,3 +519,144 @@ cJSON* storage_get_room(const char* room_id)
     cJSON_Delete(root);
     return target;
 }
+
+// Exam Session Management
+#define EXAM_SESSIONS_DIR "data/sessions/"
+
+static void ensure_sessions_dir()
+{
+    mkdir(EXAM_SESSIONS_DIR, 0777);
+}
+
+int storage_save_exam_session(const ExamSession* session)
+{
+    ensure_sessions_dir();
+
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "%s%s_%s.json", EXAM_SESSIONS_DIR, session->room_id, session->username);
+
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "room_id", session->room_id);
+    cJSON_AddStringToObject(root, "username", session->username);
+    cJSON_AddItemToObject(root, "questions", cJSON_Duplicate(session->questions, 1));
+    cJSON_AddItemToObject(root, "answers", cJSON_Duplicate(session->answers, 1));
+    cJSON_AddNumberToObject(root, "start_time", session->start_time);
+    cJSON_AddBoolToObject(root, "is_finished", session->is_finished);
+
+    char* json_str = cJSON_Print(root);
+    FILE* f = fopen(filepath, "w");
+    if (f) {
+        fprintf(f, "%s", json_str);
+        fclose(f);
+        free(json_str);
+        cJSON_Delete(root);
+        return 0;
+    }
+    free(json_str);
+    cJSON_Delete(root);
+    return -1;
+}
+
+ExamSession* storage_get_exam_session(const char* room_id, const char* username)
+{
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "%s%s_%s.json", EXAM_SESSIONS_DIR, room_id, username);
+
+    FILE* f = fopen(filepath, "r");
+    if (!f)
+        return NULL;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* data = malloc(len + 1);
+    fread(data, 1, len, f);
+    data[len] = '\0';
+    fclose(f);
+
+    cJSON* root = cJSON_Parse(data);
+    free(data);
+
+    if (!root)
+        return NULL;
+
+    ExamSession* session = malloc(sizeof(ExamSession));
+    cJSON* room_id_json = cJSON_GetObjectItem(root, "room_id");
+    cJSON* username_json = cJSON_GetObjectItem(root, "username");
+    cJSON* questions = cJSON_GetObjectItem(root, "questions");
+    cJSON* answers = cJSON_GetObjectItem(root, "answers");
+    cJSON* start_time = cJSON_GetObjectItem(root, "start_time");
+    cJSON* is_finished = cJSON_GetObjectItem(root, "is_finished");
+
+    strncpy(session->room_id, room_id_json->valuestring, sizeof(session->room_id) - 1);
+    strncpy(session->username, username_json->valuestring, sizeof(session->username) - 1);
+    session->questions = cJSON_Duplicate(questions, 1);
+    session->answers = cJSON_Duplicate(answers, 1);
+    session->start_time = (long)start_time->valuedouble;
+    session->is_finished = cJSON_IsTrue(is_finished);
+
+    cJSON_Delete(root);
+    return session;
+}
+
+int storage_delete_exam_session(const char* room_id, const char* username)
+{
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "%s%s_%s.json", EXAM_SESSIONS_DIR, room_id, username);
+    if (remove(filepath) == 0) {
+        return 0;
+    }
+    return -1;
+}
+
+void storage_free_exam_session(ExamSession* session)
+{
+    if (session) {
+        if (session->questions)
+            cJSON_Delete(session->questions);
+        if (session->answers)
+            cJSON_Delete(session->answers);
+        free(session);
+    }
+}
+
+int storage_get_user_attempts(const char* room_id, const char* username)
+{
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "data/results/%s.json", room_id);
+
+    FILE* f = fopen(filepath, "r");
+    if (!f)
+        return 0;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* data = malloc(len + 1);
+    fread(data, 1, len, f);
+    data[len] = '\0';
+    fclose(f);
+
+    cJSON* root = cJSON_Parse(data);
+    free(data);
+
+    if (!root || !cJSON_IsArray(root)) {
+        if (root)
+            cJSON_Delete(root);
+        return 0;
+    }
+
+    int attempts = 0;
+    cJSON* item = NULL;
+    cJSON_ArrayForEach(item, root)
+    {
+        cJSON* user = cJSON_GetObjectItem(item, "username");
+        if (user && strcmp(user->valuestring, username) == 0) {
+            attempts++;
+        }
+    }
+
+    cJSON_Delete(root);
+    return attempts;
+}
+

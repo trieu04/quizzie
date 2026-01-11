@@ -706,6 +706,36 @@ static void show_manage_questions_dialog(GtkWidget* parent)
 }
 
 // ... original helper ...
+static void on_close_room_clicked(GtkWidget* btn, gpointer data)
+{
+    const char* room_id = (const char*)g_object_get_data(G_OBJECT(btn), "room_id");
+    GtkWidget* parent_dialog = (GtkWidget*)data; // The Room Details dialog
+
+    GtkWidget* msg = gtk_message_dialog_new(GTK_WINDOW(parent_dialog), GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+        "Are you sure you want to close room '%s'?\nParticipants will no longer be able to join this room.",
+        room_id);
+    if (gtk_dialog_run(GTK_DIALOG(msg)) == GTK_RESPONSE_YES) {
+        cJSON* req = cJSON_CreateObject();
+        cJSON_AddStringToObject(req, "action", "CLOSE_ROOM");
+        cJSON* d = cJSON_CreateObject();
+        cJSON_AddStringToObject(d, "room_id", room_id);
+        cJSON_AddItemToObject(req, "data", d);
+
+        send_packet(ui_get_socket(), "REQ", req);
+        cJSON_Delete(req);
+
+        char type[4];
+        cJSON* resp = NULL;
+        if (receive_packet(ui_get_socket(), type, &resp) == 0) {
+            cJSON_Delete(resp);
+            // Close details dialog and refresh
+            gtk_widget_destroy(parent_dialog);
+            on_refresh_clicked(NULL, NULL);
+        }
+    }
+    gtk_widget_destroy(msg);
+}
+
 static void on_delete_room_confirm(GtkWidget* btn, gpointer data)
 {
     const char* room_id = (const char*)g_object_get_data(G_OBJECT(btn), "room_id");
@@ -767,32 +797,63 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     GtkWidget* lblAttempts = gtk_label_new("...");
     GtkWidget* lblDuration = gtk_label_new("...");
 
+    // Set alignment: values align left
+    gtk_widget_set_halign(lblID, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblName, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblStatus, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblStart, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblEnd, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblBank, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblNumQ, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblAttempts, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblDuration, GTK_ALIGN_START);
+
     int row = 0;
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Room ID:"), 0, row, 1, 1);
+    GtkWidget* label;
+
+    label = gtk_label_new("Room ID:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblID, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Room Name:"), 0, row, 1, 1);
+    label = gtk_label_new("Room Name:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblName, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Status:"), 0, row, 1, 1);
+    label = gtk_label_new("Status:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblStatus, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Open Time:"), 0, row, 1, 1);
+    label = gtk_label_new("Open Time:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblStart, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Close Time:"), 0, row, 1, 1);
+    label = gtk_label_new("Close Time:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblEnd, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Question Bank:"), 0, row, 1, 1);
+    label = gtk_label_new("Question Bank:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblBank, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Num Questions:"), 0, row, 1, 1);
+    label = gtk_label_new("Num Questions:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblNumQ, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Allowed Attempts:"), 0, row, 1, 1);
+    label = gtk_label_new("Allowed Attempts:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblAttempts, 1, row++, 1, 1);
 
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Duration (mins):"), 0, row, 1, 1);
+    label = gtk_label_new("Duration (mins):");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblDuration, 1, row++, 1, 1);
 
     // 2. Statistics
@@ -918,19 +979,31 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                 gtk_list_store_insert_with_values(res_store, NULL, -1, 0, u ? u->valuestring : "?", 1,
                     s ? s->valueint : 0, 2, time_str, -1);
             }
+
+            // 4. Actions - moved here to access 'data' variable
+            GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
+            gtk_button_box_set_layout(GTK_BUTTON_BOX(bbox), GTK_BUTTONBOX_END);
+            gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 5);
+
+            // Only show Close button if room status is OPEN
+            cJSON* room_obj = cJSON_GetObjectItem(data, "room");
+            if (room_obj) {
+                cJSON* status_obj = cJSON_GetObjectItem(room_obj, "status");
+                if (status_obj && strcmp(status_obj->valuestring, "OPEN") == 0) {
+                    GtkWidget* btnClose = gtk_button_new_with_label("Close Room");
+                    g_object_set_data_full(G_OBJECT(btnClose), "room_id", g_strdup(room_id), g_free);
+                    g_signal_connect(btnClose, "clicked", G_CALLBACK(on_close_room_clicked), dialog);
+                    gtk_container_add(GTK_CONTAINER(bbox), btnClose);
+                }
+            }
+
+            GtkWidget* btnDel = gtk_button_new_with_label("Delete Room");
+            g_object_set_data_full(G_OBJECT(btnDel), "room_id", g_strdup(room_id), g_free);
+            g_signal_connect(btnDel, "clicked", G_CALLBACK(on_delete_room_confirm), dialog);
+            gtk_container_add(GTK_CONTAINER(bbox), btnDel);
         }
         cJSON_Delete(resp);
     } // TODO: Handle error case (e.g. show "Failed to load")
-
-    // 4. Actions
-    GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
-    gtk_button_box_set_layout(GTK_BUTTON_BOX(bbox), GTK_BUTTONBOX_END);
-    gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 5);
-
-    GtkWidget* btnDel = gtk_button_new_with_label("Delete Room");
-    g_object_set_data_full(G_OBJECT(btnDel), "room_id", g_strdup(room_id), g_free);
-    g_signal_connect(btnDel, "clicked", G_CALLBACK(on_delete_room_confirm), dialog);
-    gtk_container_add(GTK_CONTAINER(bbox), btnDel);
 
     gtk_widget_show_all(dialog);
     gtk_dialog_run(GTK_DIALOG(dialog));

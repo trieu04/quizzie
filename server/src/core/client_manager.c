@@ -214,6 +214,8 @@ static void process_message(int client_idx, const char* msg_type, cJSON* payload
                 handle_get_room_stats(client_idx, data);
             } else if (strcmp(action, ACTION_DELETE_ROOM) == 0) {
                 handle_delete_room(client_idx, data);
+            } else if (strcmp(action, ACTION_CLOSE_ROOM) == 0) {
+                handle_close_room(client_idx, data);
             } else if (strcmp(action, ACTION_JOIN_ROOM) == 0) {
                 handle_join_room(client_idx, data);
             } else if (strcmp(action, ACTION_SUBMIT_ANSWER) == 0) {

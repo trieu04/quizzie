@@ -6,10 +6,13 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <unistd.h>
 
-#define POLL_TIMEOUT_MS -1
+#define POLL_TIMEOUT_MS 5000 // 5 seconds to check room status periodically
 #define DEFAULT_PORT 8080
+#define ROOM_CHECK_INTERVAL 5 // Check rooms every 5 seconds
 
 int main(int argc, char* argv[])
 {
@@ -23,6 +26,32 @@ int main(int argc, char* argv[])
     storage_init();
     server_start(port);
     return 0;
+}
+
+void check_and_close_expired_rooms()
+{
+    cJSON* rooms = cJSON_CreateArray();
+    storage_get_rooms(rooms);
+
+    time_t now = time(NULL);
+    cJSON* room;
+    cJSON_ArrayForEach(room, rooms)
+    {
+        cJSON* id = cJSON_GetObjectItem(room, "id");
+        cJSON* status = cJSON_GetObjectItem(room, "status");
+        cJSON* end_time = cJSON_GetObjectItem(room, "end_time");
+
+        if (id && status && end_time) {
+            // If room is OPEN and current time > end_time, close it
+            if (strcmp(status->valuestring, "OPEN") == 0 && now > (time_t)end_time->valuedouble) {
+                printf("Auto-closing room %s (expired at %ld, now is %ld)\n",
+                       id->valuestring, (long)end_time->valuedouble, (long)now);
+                storage_update_room_status(id->valuestring, "CLOSED");
+            }
+        }
+    }
+
+    cJSON_Delete(rooms);
 }
 
 void server_start(int port)
@@ -43,11 +72,20 @@ void server_start(int port)
     printf("Server loop started on port %d...\n", port);
     fflush(stdout);
 
+    time_t last_check = time(NULL);
+
     while (1) {
         int ret = poll(fds, MAX_CLIENTS + 1, POLL_TIMEOUT_MS);
         if (ret < 0) {
             perror("poll");
             break;
+        }
+
+        // Periodically check and close expired rooms
+        time_t now = time(NULL);
+        if (now - last_check >= ROOM_CHECK_INTERVAL) {
+            check_and_close_expired_rooms();
+            last_check = now;
         }
 
         // Check for new connection

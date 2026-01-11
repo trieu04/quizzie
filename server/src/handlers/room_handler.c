@@ -133,3 +133,23 @@ void handle_delete_room(int client_idx, cJSON* data)
         client_send_error(client_idx, "Failed to delete room");
     }
 }
+
+void handle_close_room(int client_idx, cJSON* data)
+{
+    if (!client_check_admin(client_idx)) {
+        client_send_error(client_idx, "Permission denied");
+        return;
+    }
+
+    cJSON* room_id = cJSON_GetObjectItem(data, "room_id");
+    if (!cJSON_IsString(room_id)) {
+        client_send_error(client_idx, "Invalid room id");
+        return;
+    }
+
+    if (storage_update_room_status(room_id->valuestring, "CLOSED") == 0) {
+        client_send_success(client_idx, "Room closed");
+    } else {
+        client_send_error(client_idx, "Failed to close room");
+    }
+}

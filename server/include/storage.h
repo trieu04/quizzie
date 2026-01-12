@@ -14,6 +14,7 @@ typedef struct
     int num_questions;
     int allowed_attempts;
     int duration; // minutes
+    int show_answers; // 1: allow viewing answers after completion, 0: don't show
 } Room;
 
 // User Management
@@ -40,6 +41,8 @@ typedef struct
     int num_questions;
     int correct_count;
     long timestamp;
+    cJSON* questions; // Array of questions with correct answers
+    cJSON* answers;   // Array of user's answers
 } RoomResult;
 
 int storage_save_result(const RoomResult* result);

@@ -224,6 +224,8 @@ static void process_message(int client_idx, const char* msg_type, cJSON* payload
                 handle_finish_exam(client_idx, data);
             } else if (strcmp(action, ACTION_GET_EXAM_STATE) == 0) {
                 handle_get_exam_state(client_idx, data);
+            } else if (strcmp(action, ACTION_GET_EXAM_REVIEW) == 0) {
+                handle_get_exam_review(client_idx, data);
             }
         }
     } else if (strcmp(msg_type, MSG_TYPE_HBT) == 0) {

@@ -174,6 +174,7 @@ int storage_save_room(const Room* room)
     cJSON_AddNumberToObject(room_obj, "num_questions", room->num_questions);
     cJSON_AddNumberToObject(room_obj, "allowed_attempts", room->allowed_attempts);
     cJSON_AddNumberToObject(room_obj, "duration", room->duration);
+    cJSON_AddNumberToObject(room_obj, "show_answers", room->show_answers);
 
     cJSON_AddItemToArray(root, room_obj);
 
@@ -438,6 +439,12 @@ int storage_save_result(const RoomResult* result)
     cJSON_AddNumberToObject(res_obj, "num_questions", result->num_questions);
     cJSON_AddNumberToObject(res_obj, "correct_count", result->correct_count);
     cJSON_AddNumberToObject(res_obj, "timestamp", result->timestamp);
+    if (result->questions) {
+        cJSON_AddItemToObject(res_obj, "questions", cJSON_Duplicate(result->questions, 1));
+    }
+    if (result->answers) {
+        cJSON_AddItemToObject(res_obj, "answers", cJSON_Duplicate(result->answers, 1));
+    }
 
     cJSON_AddItemToArray(root, res_obj);
 

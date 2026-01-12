@@ -245,6 +245,8 @@ void handle_finish_exam(int client_idx, cJSON* data)
     result.num_questions = num_questions;
     result.correct_count = correct_count;
     result.timestamp = time(NULL);
+    result.questions = session->questions; // Keep questions with correct answers
+    result.answers = session->answers;      // Keep user's answers
     storage_save_result(&result);
 
     // Delete session after finishing
@@ -318,4 +320,101 @@ void handle_get_exam_state(int client_idx, cJSON* data)
     cJSON_Delete(resp);
     cJSON_Delete(room);
     storage_free_exam_session(session);
+}
+
+void handle_get_exam_review(int client_idx, cJSON* data)
+{
+    if (!client_is_logged_in(client_idx)) {
+        client_send_error(client_idx, "Not logged in");
+        return;
+    }
+
+    cJSON* room_id = cJSON_GetObjectItem(data, "room_id");
+    cJSON* timestamp_obj = cJSON_GetObjectItem(data, "timestamp");
+
+    if (!cJSON_IsString(room_id) || !cJSON_IsNumber(timestamp_obj)) {
+        client_send_error(client_idx, "Invalid request data");
+        return;
+    }
+
+    char username[32];
+    client_get_username(client_idx, username, sizeof(username));
+
+    // Get room to check if show_answers is enabled
+    cJSON* room = storage_get_room(room_id->valuestring);
+    if (!room) {
+        client_send_error(client_idx, "Room not found");
+        return;
+    }
+
+    cJSON* show_answers_obj = cJSON_GetObjectItem(room, "show_answers");
+    int show_answers = show_answers_obj && cJSON_IsNumber(show_answers_obj) ? show_answers_obj->valueint : 0;
+
+    if (!show_answers) {
+        cJSON_Delete(room);
+        client_send_error(client_idx, "Viewing answers is not allowed for this room");
+        return;
+    }
+
+    // Get all results for this room
+    cJSON* results_array = cJSON_CreateArray();
+    storage_get_room_results(room_id->valuestring, results_array);
+
+    long target_timestamp = (long)timestamp_obj->valuedouble;
+    cJSON* target_result = NULL;
+
+    // Find the specific result by username and timestamp
+    cJSON* result;
+    cJSON_ArrayForEach(result, results_array) {
+        cJSON* user_obj = cJSON_GetObjectItem(result, "username");
+        cJSON* ts_obj = cJSON_GetObjectItem(result, "timestamp");
+
+        if (user_obj && ts_obj &&
+            strcmp(user_obj->valuestring, username) == 0 &&
+            (long)ts_obj->valuedouble == target_timestamp) {
+            target_result = result;
+            break;
+        }
+    }
+
+    if (!target_result) {
+        cJSON_Delete(results_array);
+        cJSON_Delete(room);
+        client_send_error(client_idx, "Result not found");
+        return;
+    }
+
+    // Send the result with questions and answers
+    cJSON* resp = cJSON_CreateObject();
+    cJSON_AddStringToObject(resp, "status", "SUCCESS");
+    cJSON* data_obj = cJSON_CreateObject();
+
+    cJSON* questions = cJSON_GetObjectItem(target_result, "questions");
+    cJSON* answers = cJSON_GetObjectItem(target_result, "answers");
+    cJSON* score = cJSON_GetObjectItem(target_result, "score");
+    cJSON* correct_count = cJSON_GetObjectItem(target_result, "correct_count");
+    cJSON* num_questions = cJSON_GetObjectItem(target_result, "num_questions");
+
+    if (questions) {
+        cJSON_AddItemToObject(data_obj, "questions", cJSON_Duplicate(questions, 1));
+    }
+    if (answers) {
+        cJSON_AddItemToObject(data_obj, "answers", cJSON_Duplicate(answers, 1));
+    }
+    if (score) {
+        cJSON_AddNumberToObject(data_obj, "score", score->valueint);
+    }
+    if (correct_count) {
+        cJSON_AddNumberToObject(data_obj, "correct_count", correct_count->valueint);
+    }
+    if (num_questions) {
+        cJSON_AddNumberToObject(data_obj, "num_questions", num_questions->valueint);
+    }
+
+    cJSON_AddItemToObject(resp, "data", data_obj);
+    client_send_response(client_idx, "RES", resp);
+
+    cJSON_Delete(resp);
+    cJSON_Delete(results_array);
+    cJSON_Delete(room);
 }

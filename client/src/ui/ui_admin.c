@@ -155,12 +155,16 @@ static void show_create_room_dialog(GtkWidget* parent)
     gtk_container_add(GTK_CONTAINER(content), grid);
 
     GtkWidget* name_entry = gtk_entry_new();
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Room Name:"), 0, 0, 1, 1);
+    GtkWidget* lbl_name = gtk_label_new("Room Name:");
+    gtk_widget_set_halign(lbl_name, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_name, 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 0, 2, 1);
 
     // Question Bank Dropdown
     GtkWidget* bank_combo = gtk_combo_box_text_new();
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Question Bank:"), 0, 1, 1, 1);
+    GtkWidget* lbl_bank = gtk_label_new("Question Bank:");
+    gtk_widget_set_halign(lbl_bank, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_bank, 0, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), bank_combo, 1, 1, 1, 1);
 
     GtkWidget* preview_btn = gtk_button_new_with_label("Preview");
@@ -203,7 +207,9 @@ static void show_create_room_dialog(GtkWidget* parent)
 
     GtkWidget* start_entry = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(start_entry), buf);
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Join Open Time (YYYY-MM-DD HH:MM:SS):"), 0, 2, 1, 1);
+    GtkWidget* lbl_start = gtk_label_new("Join Open Time (YYYY-MM-DD HH:MM:SS):");
+    gtk_widget_set_halign(lbl_start, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_start, 0, 2, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), start_entry, 1, 2, 2, 1);
 
     tm_info->tm_hour += 1; // +1 hour default
@@ -212,30 +218,56 @@ static void show_create_room_dialog(GtkWidget* parent)
 
     GtkWidget* end_entry = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(end_entry), buf);
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Join Close Time (YYYY-MM-DD HH:MM:SS):"), 0, 3, 1, 1);
+    GtkWidget* lbl_end = gtk_label_new("Join Close Time (YYYY-MM-DD HH:MM:SS):");
+    gtk_widget_set_halign(lbl_end, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_end, 0, 3, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), end_entry, 1, 3, 2, 1);
 
     // Duration
     GtkAdjustment* dur_adj = gtk_adjustment_new(30, 1, 180, 1, 10, 0);
     GtkWidget* dur_spin = gtk_spin_button_new(dur_adj, 1, 0);
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Duration (mins):"), 0, 4, 1, 1);
+    GtkWidget* lbl_duration = gtk_label_new("Duration (mins):");
+    gtk_widget_set_halign(lbl_duration, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_duration, 0, 4, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), dur_spin, 1, 4, 2, 1);
 
     // Number of Questions
     GtkAdjustment* num_q_adj = gtk_adjustment_new(10, 1, 100, 1, 10, 0);
     GtkWidget* num_q_spin = gtk_spin_button_new(num_q_adj, 1, 0);
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Num Questions:"), 0, 5, 1, 1);
+    GtkWidget* lbl_num_q = gtk_label_new("Num Questions:");
+    gtk_widget_set_halign(lbl_num_q, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_num_q, 0, 5, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), num_q_spin, 1, 5, 2, 1);
 
     // Allowed Attempts
     GtkAdjustment* atm_adj = gtk_adjustment_new(1, 1, 10, 1, 1, 0);
     GtkWidget* atm_spin = gtk_spin_button_new(atm_adj, 1, 0);
-    gtk_grid_attach(GTK_GRID(grid), gtk_label_new("Allowed Attempts:"), 0, 6, 1, 1);
+    GtkWidget* lbl_attempts = gtk_label_new("Allowed Attempts:");
+    gtk_widget_set_halign(lbl_attempts, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_attempts, 0, 6, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), atm_spin, 1, 6, 2, 1);
+
+    // Show Answers Checkbox
+    GtkWidget* show_answers_check = gtk_check_button_new_with_label("");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(show_answers_check), TRUE); // Default: enabled
+    GtkWidget* lbl_show_answers = gtk_label_new("Show Answers:");
+    gtk_widget_set_halign(lbl_show_answers, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), lbl_show_answers, 0, 7, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), show_answers_check, 1, 7, 2, 1);
 
     gtk_widget_show_all(dialog);
 
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+    // Loop until validation passes or user cancels
+    int done = 0;
+    while (!done) {
+        int response = gtk_dialog_run(GTK_DIALOG(dialog));
+
+        if (response != GTK_RESPONSE_ACCEPT) {
+            // User cancelled
+            done = 1;
+            break;
+        }
+
         const char* name = gtk_entry_get_text(GTK_ENTRY(name_entry));
         char* bank = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(bank_combo));
         const char* s_time = gtk_entry_get_text(GTK_ENTRY(start_entry));
@@ -243,29 +275,95 @@ static void show_create_room_dialog(GtkWidget* parent)
         int num_q = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(num_q_spin));
         int attempts = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(atm_spin));
         int duration = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(dur_spin));
+        int show_answers = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(show_answers_check)) ? 1 : 0;
 
-        struct tm tm_s = { 0 }, tm_e = { 0 };
-        strptime(s_time, "%Y-%m-%d %H:%M:%S", &tm_s);
-        strptime(e_time, "%Y-%m-%d %H:%M:%S", &tm_e);
-        long start_ts = mktime(&tm_s);
-        long end_ts = mktime(&tm_e);
+        // Validation
+        int valid = 1;
+        char error_msg[256] = "";
+
+        // Validate room name
+        if (!name || strlen(name) == 0) {
+            snprintf(error_msg, sizeof(error_msg), "Room name cannot be empty!");
+            valid = 0;
+        }
+        // Validate question bank selection
+        else if (!bank || strlen(bank) == 0) {
+            snprintf(error_msg, sizeof(error_msg), "Please select a question bank!");
+            valid = 0;
+        }
+        // Validate time format and parse
+        else {
+            struct tm tm_s = { 0 }, tm_e = { 0 };
+            char* result_s = strptime(s_time, "%Y-%m-%d %H:%M:%S", &tm_s);
+            char* result_e = strptime(e_time, "%Y-%m-%d %H:%M:%S", &tm_e);
+
+            if (!result_s || *result_s != '\0') {
+                snprintf(error_msg, sizeof(error_msg), "Invalid start time format!\nUse: YYYY-MM-DD HH:MM:SS");
+                valid = 0;
+            }
+            else if (!result_e || *result_e != '\0') {
+                snprintf(error_msg, sizeof(error_msg), "Invalid end time format!\nUse: YYYY-MM-DD HH:MM:SS");
+                valid = 0;
+            }
+            else {
+                long start_ts = mktime(&tm_s);
+                long end_ts = mktime(&tm_e);
+                time_t now = time(NULL);
+
+                // Validate time relationships
+                if (start_ts == -1 || end_ts == -1) {
+                    snprintf(error_msg, sizeof(error_msg), "Invalid date/time values!");
+                    valid = 0;
+                }
+                else if (end_ts <= start_ts) {
+                    snprintf(error_msg, sizeof(error_msg), "End time must be after start time!");
+                    valid = 0;
+                }
+                else if (duration <= 0) {
+                    snprintf(error_msg, sizeof(error_msg), "Duration must be greater than 0!");
+                    valid = 0;
+                }
+                else {
+                    // All validations passed, create the room
+                    cJSON* req = cJSON_CreateObject();
+                    cJSON_AddStringToObject(req, "action", "CREATE_ROOM");
+                    cJSON* data = cJSON_CreateObject();
+                    cJSON_AddStringToObject(data, "room_name", name);
+                    cJSON_AddStringToObject(data, "question_bank_id", bank);
+                    cJSON_AddNumberToObject(data, "start_time", start_ts);
+                    cJSON_AddNumberToObject(data, "end_time", end_ts);
+                    cJSON_AddNumberToObject(data, "num_questions", num_q);
+                    cJSON_AddNumberToObject(data, "allowed_attempts", attempts);
+                    cJSON_AddNumberToObject(data, "duration", duration);
+                    cJSON_AddNumberToObject(data, "show_answers", show_answers);
+                    cJSON_AddItemToObject(req, "data", data);
+
+                    send_packet(ui_get_socket(), "REQ", req);
+                    cJSON_Delete(req);
+
+                    // Success - exit loop
+                    done = 1;
+                }
+            }
+        }
 
         if (bank) {
-            cJSON* req = cJSON_CreateObject();
-            cJSON_AddStringToObject(req, "action", "CREATE_ROOM");
-            cJSON* data = cJSON_CreateObject();
-            cJSON_AddStringToObject(data, "room_name", name);
-            cJSON_AddStringToObject(data, "question_bank_id", bank);
-            cJSON_AddNumberToObject(data, "start_time", start_ts);
-            cJSON_AddNumberToObject(data, "end_time", end_ts);
-            cJSON_AddNumberToObject(data, "num_questions", num_q);
-            cJSON_AddNumberToObject(data, "allowed_attempts", attempts);
-            cJSON_AddNumberToObject(data, "duration", duration);
-            cJSON_AddItemToObject(req, "data", data);
-
-            send_packet(ui_get_socket(), "REQ", req);
-            cJSON_Delete(req);
             g_free(bank);
+        }
+
+        // Show error message if validation failed
+        if (!valid) {
+            GtkWidget* error_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "%s", error_msg);
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+            // Loop continues - dialog stays open
+        } else {
+            // Validation passed and room created
+            done = 1;
         }
     }
 
@@ -796,6 +894,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     GtkWidget* lblNumQ = gtk_label_new("...");
     GtkWidget* lblAttempts = gtk_label_new("...");
     GtkWidget* lblDuration = gtk_label_new("...");
+    GtkWidget* lblShowAnswers = gtk_label_new("...");
 
     // Set alignment: values align left
     gtk_widget_set_halign(lblID, GTK_ALIGN_START);
@@ -807,6 +906,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     gtk_widget_set_halign(lblNumQ, GTK_ALIGN_START);
     gtk_widget_set_halign(lblAttempts, GTK_ALIGN_START);
     gtk_widget_set_halign(lblDuration, GTK_ALIGN_START);
+    gtk_widget_set_halign(lblShowAnswers, GTK_ALIGN_START);
 
     int row = 0;
     GtkWidget* label;
@@ -855,6 +955,11 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblDuration, 1, row++, 1, 1);
+
+    label = gtk_label_new("Show Answers:");
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), lblShowAnswers, 1, row++, 1, 1);
 
     // 2. Statistics
     GtkWidget* lblStats = gtk_label_new("Loading stats...");
@@ -911,6 +1016,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                 cJSON* nq = cJSON_GetObjectItem(r, "num_questions");
                 cJSON* aa = cJSON_GetObjectItem(r, "allowed_attempts");
                 cJSON* dur = cJSON_GetObjectItem(r, "duration");
+                cJSON* show_ans = cJSON_GetObjectItem(r, "show_answers");
 
                 if (st)
                     gtk_label_set_text(GTK_LABEL(lblStatus), st->valuestring);
@@ -929,6 +1035,10 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                 if (dur) {
                     snprintf(buf, sizeof(buf), "%d", dur->valueint);
                     gtk_label_set_text(GTK_LABEL(lblDuration), buf);
+                }
+                if (show_ans) {
+                    int show_val = show_ans->valueint;
+                    gtk_label_set_text(GTK_LABEL(lblShowAnswers), show_val ? "Yes" : "No");
                 }
 
                 if (stime) {

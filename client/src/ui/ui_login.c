@@ -39,7 +39,7 @@ static void on_window_destroy(GtkWidget* widget, gpointer data)
 
 void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
 {
-    GtkWidget* window = create_window("Quizzie Login", LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT);
+    GtkWidget* window = create_window("Đăng nhập Quizzie", LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT);
     *window_out = window;
 
     GtkWidget* grid = gtk_grid_new();
@@ -52,11 +52,11 @@ void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
     LoginWidgets* widgets = malloc(sizeof(LoginWidgets));
 
     // IP & Port
-    GtkWidget* lbl_ip = gtk_label_new("Server IP:");
+    GtkWidget* lbl_ip = gtk_label_new("IP Máy chủ:");
     widgets->entry_ip = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_ip), DEFAULT_IP);
 
-    GtkWidget* lbl_port = gtk_label_new("Port:");
+    GtkWidget* lbl_port = gtk_label_new("Cổng:");
     widgets->entry_port = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(widgets->entry_port), DEFAULT_PORT);
 
@@ -66,10 +66,10 @@ void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
     gtk_grid_attach(GTK_GRID(grid), widgets->entry_port, 3, 0, 1, 1);
 
     // Username & Password
-    GtkWidget* lbl_user = gtk_label_new("Username:");
+    GtkWidget* lbl_user = gtk_label_new("Tài khoản:");
     widgets->entry_username = gtk_entry_new();
 
-    GtkWidget* lbl_pass = gtk_label_new("Password:");
+    GtkWidget* lbl_pass = gtk_label_new("Mật khẩu:");
     widgets->entry_password = gtk_entry_new();
     gtk_entry_set_visibility(GTK_ENTRY(widgets->entry_password), FALSE);
 
@@ -79,7 +79,7 @@ void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
     gtk_grid_attach(GTK_GRID(grid), widgets->entry_password, 1, 2, 3, 1);
 
     // Login Button
-    GtkWidget* btn_login = gtk_button_new_with_label("Login");
+    GtkWidget* btn_login = gtk_button_new_with_label("Đăng nhập");
     g_signal_connect(btn_login, "clicked", G_CALLBACK(on_login_btn_clicked), widgets);
 
     // Clean up struct when window is destroyed
@@ -88,7 +88,7 @@ void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
     gtk_grid_attach(GTK_GRID(grid), btn_login, 1, 3, 2, 1);
 
     // Status Bar
-    *status_label_out = gtk_label_new("Status: Disconnected");
+    *status_label_out = gtk_label_new("Trạng thái: Disconnected");
     gtk_grid_attach(GTK_GRID(grid), *status_label_out, 0, 4, 5, 1);
 
     gtk_widget_show_all(window);

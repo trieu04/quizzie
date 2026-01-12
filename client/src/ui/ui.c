@@ -102,10 +102,10 @@ static void disconnect_client(gboolean show_error)
         sock = -1;
     }
 
-    update_status("Status: Disconnected");
+    update_status("Trạng thái: Disconnected");
 
     if (show_error && window) {
-        show_message("Disconnected from server.", GTK_MESSAGE_WARNING);
+        show_message("Đã ngắt kết nối khỏi máy chủ.", GTK_MESSAGE_WARNING);
     }
 
     ui_show_login();
@@ -118,15 +118,15 @@ int ensure_connection(const char* ip, int port)
 
     sock = net_connect(ip, port);
     if (sock >= 0) {
-        update_status("Status: Connected");
+        update_status("Trạng thái: Connected");
 
         GIOChannel* channel = g_io_channel_unix_new(sock);
         network_watch_id = g_io_add_watch(channel, G_IO_IN | G_IO_HUP, on_network_event, NULL);
         g_io_channel_unref(channel);
         return 0;
     } else {
-        update_status("Status: Connection Failed");
-        show_message("Could not connect to server.", GTK_MESSAGE_ERROR);
+        update_status("Trạng thái: Connection Failed");
+        show_message("Không thể kết nối đến máy chủ.", GTK_MESSAGE_ERROR);
         return -1;
     }
 }
@@ -137,7 +137,7 @@ void login_controller_on_login(const char* ip, int port, const char* username, c
         return;
 
     if (strlen(username) == 0 || strlen(password) == 0) {
-        show_message("Please enter username and password.", GTK_MESSAGE_INFO);
+        show_message("Vui lòng nhập tài khoản và mật khẩu.", GTK_MESSAGE_INFO);
         return;
     }
 
@@ -249,7 +249,7 @@ static void handle_server_message(char* msg_type, cJSON* payload)
 
                 char result_msg[256];
                 snprintf(result_msg, sizeof(result_msg),
-                    "Exam Finished!\n\nScore: %d%%\nCorrect: %d/%d",
+                    "Hoàn thành bài thi!\n\nĐiểm: %d%%\nĐúng: %d/%d",
                     score ? score->valueint : 0,
                     correct_count ? correct_count->valueint : 0,
                     total_questions ? total_questions->valueint : 0);

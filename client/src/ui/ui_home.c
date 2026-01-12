@@ -60,7 +60,7 @@ static void on_join_room_clicked(GtkWidget* widget, gpointer data)
 void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, const char* username)
 {
     char title[64];
-    snprintf(title, sizeof(title), "Quizzie Home - %s", username);
+    snprintf(title, sizeof(title), "Trang chủ Quizzie - %s", username);
     GtkWidget* window = create_window(title, 900, 600);
     *window_out = window;
 
@@ -71,7 +71,7 @@ void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, c
     // Header
     GtkWidget* header_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     char welcome_msg[64];
-    snprintf(welcome_msg, sizeof(welcome_msg), "Welcome, %s!", username);
+    snprintf(welcome_msg, sizeof(welcome_msg), "Xin chào, %s!", username);
     GtkWidget* lbl_welcome = gtk_label_new(welcome_msg);
     PangoAttrList* attrlist = pango_attr_list_new();
     PangoAttribute* attr = pango_attr_scale_new(1.5);
@@ -79,7 +79,7 @@ void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, c
     gtk_label_set_attributes(GTK_LABEL(lbl_welcome), attrlist);
     pango_attr_list_unref(attrlist);
 
-    GtkWidget* btn_logout = gtk_button_new_with_label("Logout");
+    GtkWidget* btn_logout = gtk_button_new_with_label("Đăng xuất");
     g_signal_connect(btn_logout, "clicked", G_CALLBACK(on_logout_btn_clicked), NULL);
 
     gtk_box_pack_start(GTK_BOX(header_box), lbl_welcome, FALSE, FALSE, 10);
@@ -87,7 +87,7 @@ void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, c
     gtk_box_pack_start(GTK_BOX(vbox), header_box, FALSE, FALSE, 10);
 
     // Room List Title
-    GtkWidget* title_label = gtk_label_new("Available Quiz Rooms");
+    GtkWidget* title_label = gtk_label_new("Phòng thi có sẵn");
     PangoAttrList* title_attrlist = pango_attr_list_new();
     PangoAttribute* title_attr = pango_attr_scale_new(1.2);
     pango_attr_list_insert(title_attrlist, title_attr);
@@ -100,11 +100,11 @@ void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, c
     tree_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(room_store));
 
     GtkCellRenderer* renderer = gtk_cell_renderer_text_new();
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "ID", renderer, "text", 0, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Name", renderer, "text", 1, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Status", renderer, "text", 2, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Open Time", renderer, "text", 3, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Duration (mins)", renderer, "text", 4, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Mã phòng", renderer, "text", 0, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Tên phòng", renderer, "text", 1, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Trạng thái", renderer, "text", 2, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Thời gian mở", renderer, "text", 3, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Thời lượng (phút)", renderer, "text", 4, NULL);
 
     GtkWidget* scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_widget_set_size_request(scrolled_window, -1, 300);
@@ -113,17 +113,17 @@ void ui_show_home_window(GtkWidget** window_out, GtkWidget** status_label_out, c
 
     // Action buttons
     GtkWidget* action_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget* refresh_btn = gtk_button_new_with_label("Refresh List");
+    GtkWidget* refresh_btn = gtk_button_new_with_label("Làm mới");
     g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(action_box), refresh_btn, FALSE, FALSE, 10);
 
-    GtkWidget* join_btn = gtk_button_new_with_label("View Room Details");
+    GtkWidget* join_btn = gtk_button_new_with_label("Xem chi tiết");
     g_signal_connect(join_btn, "clicked", G_CALLBACK(on_join_room_clicked), tree_view);
     gtk_box_pack_start(GTK_BOX(action_box), join_btn, FALSE, FALSE, 10);
 
     gtk_box_pack_start(GTK_BOX(vbox), action_box, FALSE, FALSE, 10);
 
-    *status_label_out = gtk_label_new("Status: Connected");
+    *status_label_out = gtk_label_new("Trạng thái: Connected");
     gtk_box_pack_start(GTK_BOX(vbox), *status_label_out, FALSE, FALSE, 0);
 
     gtk_widget_show_all(window);

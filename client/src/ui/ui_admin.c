@@ -27,7 +27,7 @@ extern int ui_get_socket(); // defined in ui.c
 void ui_show_admin_dashboard(GtkWidget** window, GtkWidget** status_label, const char* username)
 {
     *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(*window), "Quizzie - Admin Dashboard");
+    gtk_window_set_title(GTK_WINDOW(*window), "Quizzie - Trang quản trị");
     gtk_window_set_default_size(GTK_WINDOW(*window), 900, 600);
     g_signal_connect(*window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
@@ -37,11 +37,11 @@ void ui_show_admin_dashboard(GtkWidget** window, GtkWidget** status_label, const
     // Header
     GtkWidget* header_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     char welcome_msg[64];
-    snprintf(welcome_msg, sizeof(welcome_msg), "Welcome, Admin %s!", username);
+    snprintf(welcome_msg, sizeof(welcome_msg), "Xin chào, Admin %s!", username);
     GtkWidget* welcome_label = gtk_label_new(welcome_msg);
     gtk_box_pack_start(GTK_BOX(header_box), welcome_label, FALSE, FALSE, 10);
 
-    GtkWidget* logout_btn = gtk_button_new_with_label("Logout");
+    GtkWidget* logout_btn = gtk_button_new_with_label("Đăng xuất");
     g_signal_connect(logout_btn, "clicked", G_CALLBACK(on_logout_clicked), NULL);
     gtk_box_pack_end(GTK_BOX(header_box), logout_btn, FALSE, FALSE, 10);
 
@@ -53,13 +53,13 @@ void ui_show_admin_dashboard(GtkWidget** window, GtkWidget** status_label, const
     GtkWidget* tree_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(room_store));
 
     GtkCellRenderer* renderer = gtk_cell_renderer_text_new();
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "ID", renderer, "text", 0, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Name", renderer, "text", 1, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Status", renderer, "text", 2, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Open Time", renderer, "text", 3, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Close Time", renderer, "text", 4, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Questions", renderer, "text", 5, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Allowed Attempts", renderer, "text", 6,
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Mã", renderer, "text", 0, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Tên phòng", renderer, "text", 1, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Trạng thái", renderer, "text", 2, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Mở lúc", renderer, "text", 3, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Đóng lúc", renderer, "text", 4, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Số câu", renderer, "text", 5, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Số lần làm", renderer, "text", 6,
         NULL);
 
     GtkWidget* scrolled_window = gtk_scrolled_window_new(NULL, NULL);
@@ -67,19 +67,19 @@ void ui_show_admin_dashboard(GtkWidget** window, GtkWidget** status_label, const
 
     // Actions
     GtkWidget* action_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget* create_room_btn = gtk_button_new_with_label("Create New Room");
+    GtkWidget* create_room_btn = gtk_button_new_with_label("Tạo phòng mới");
     g_signal_connect(create_room_btn, "clicked", G_CALLBACK(on_create_room_clicked), *window);
     gtk_box_pack_start(GTK_BOX(action_box), create_room_btn, FALSE, FALSE, 10);
 
-    GtkWidget* manage_questions_btn = gtk_button_new_with_label("Manage Question Banks");
+    GtkWidget* manage_questions_btn = gtk_button_new_with_label("Quản lý đề thi");
     g_signal_connect(manage_questions_btn, "clicked", G_CALLBACK(on_manage_questions_clicked), *window);
     gtk_box_pack_start(GTK_BOX(action_box), manage_questions_btn, FALSE, FALSE, 10);
 
-    GtkWidget* refresh_btn = gtk_button_new_with_label("Refresh List");
+    GtkWidget* refresh_btn = gtk_button_new_with_label("Làm mới");
     g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(action_box), refresh_btn, FALSE, FALSE, 10);
 
-    GtkWidget* details_btn = gtk_button_new_with_label("Room Details");
+    GtkWidget* details_btn = gtk_button_new_with_label("Chi tiết");
     g_signal_connect(details_btn, "clicked", G_CALLBACK(on_room_details_clicked), tree_view);
     gtk_box_pack_start(GTK_BOX(action_box), details_btn, FALSE, FALSE, 10);
 
@@ -87,7 +87,7 @@ void ui_show_admin_dashboard(GtkWidget** window, GtkWidget** status_label, const
     gtk_box_pack_start(GTK_BOX(vbox), scrolled_window, TRUE, TRUE, 10);
 
     // Status
-    *status_label = gtk_label_new("Status: Connected");
+    *status_label = gtk_label_new("Trạng thái: Connected");
     gtk_box_pack_start(GTK_BOX(vbox), *status_label, FALSE, FALSE, 10);
 
     gtk_widget_show_all(*window);
@@ -155,19 +155,19 @@ static void show_create_room_dialog(GtkWidget* parent)
     gtk_container_add(GTK_CONTAINER(content), grid);
 
     GtkWidget* name_entry = gtk_entry_new();
-    GtkWidget* lbl_name = gtk_label_new("Room Name:");
+    GtkWidget* lbl_name = gtk_label_new("Tên phòng:");
     gtk_widget_set_halign(lbl_name, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_name, 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 0, 2, 1);
 
     // Question Bank Dropdown
     GtkWidget* bank_combo = gtk_combo_box_text_new();
-    GtkWidget* lbl_bank = gtk_label_new("Question Bank:");
+    GtkWidget* lbl_bank = gtk_label_new("Đề thi:");
     gtk_widget_set_halign(lbl_bank, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_bank, 0, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), bank_combo, 1, 1, 1, 1);
 
-    GtkWidget* preview_btn = gtk_button_new_with_label("Preview");
+    GtkWidget* preview_btn = gtk_button_new_with_label("Xem trước");
     g_signal_connect(preview_btn, "clicked", G_CALLBACK(on_preview_bank_clicked), bank_combo);
     gtk_grid_attach(GTK_GRID(grid), preview_btn, 2, 1, 1, 1);
 
@@ -207,7 +207,7 @@ static void show_create_room_dialog(GtkWidget* parent)
 
     GtkWidget* start_entry = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(start_entry), buf);
-    GtkWidget* lbl_start = gtk_label_new("Join Open Time (YYYY-MM-DD HH:MM:SS):");
+    GtkWidget* lbl_start = gtk_label_new("Mở lúc (YYYY-MM-DD HH:MM:SS):");
     gtk_widget_set_halign(lbl_start, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_start, 0, 2, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), start_entry, 1, 2, 2, 1);
@@ -218,7 +218,7 @@ static void show_create_room_dialog(GtkWidget* parent)
 
     GtkWidget* end_entry = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(end_entry), buf);
-    GtkWidget* lbl_end = gtk_label_new("Join Close Time (YYYY-MM-DD HH:MM:SS):");
+    GtkWidget* lbl_end = gtk_label_new("Đóng lúc (YYYY-MM-DD HH:MM:SS):");
     gtk_widget_set_halign(lbl_end, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_end, 0, 3, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), end_entry, 1, 3, 2, 1);
@@ -226,7 +226,7 @@ static void show_create_room_dialog(GtkWidget* parent)
     // Duration
     GtkAdjustment* dur_adj = gtk_adjustment_new(30, 1, 180, 1, 10, 0);
     GtkWidget* dur_spin = gtk_spin_button_new(dur_adj, 1, 0);
-    GtkWidget* lbl_duration = gtk_label_new("Duration (mins):");
+    GtkWidget* lbl_duration = gtk_label_new("Thời lượng (phút):");
     gtk_widget_set_halign(lbl_duration, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_duration, 0, 4, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), dur_spin, 1, 4, 2, 1);
@@ -234,7 +234,7 @@ static void show_create_room_dialog(GtkWidget* parent)
     // Number of Questions
     GtkAdjustment* num_q_adj = gtk_adjustment_new(10, 1, 100, 1, 10, 0);
     GtkWidget* num_q_spin = gtk_spin_button_new(num_q_adj, 1, 0);
-    GtkWidget* lbl_num_q = gtk_label_new("Num Questions:");
+    GtkWidget* lbl_num_q = gtk_label_new("Số câu hỏi:");
     gtk_widget_set_halign(lbl_num_q, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_num_q, 0, 5, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), num_q_spin, 1, 5, 2, 1);
@@ -242,7 +242,7 @@ static void show_create_room_dialog(GtkWidget* parent)
     // Allowed Attempts
     GtkAdjustment* atm_adj = gtk_adjustment_new(1, 1, 10, 1, 1, 0);
     GtkWidget* atm_spin = gtk_spin_button_new(atm_adj, 1, 0);
-    GtkWidget* lbl_attempts = gtk_label_new("Allowed Attempts:");
+    GtkWidget* lbl_attempts = gtk_label_new("Số lần làm:");
     gtk_widget_set_halign(lbl_attempts, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_attempts, 0, 6, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), atm_spin, 1, 6, 2, 1);
@@ -250,7 +250,7 @@ static void show_create_room_dialog(GtkWidget* parent)
     // Show Answers Checkbox
     GtkWidget* show_answers_check = gtk_check_button_new_with_label("");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(show_answers_check), TRUE); // Default: enabled
-    GtkWidget* lbl_show_answers = gtk_label_new("Show Answers:");
+    GtkWidget* lbl_show_answers = gtk_label_new("Cho xem đáp án:");
     gtk_widget_set_halign(lbl_show_answers, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), lbl_show_answers, 0, 7, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), show_answers_check, 1, 7, 2, 1);
@@ -283,12 +283,12 @@ static void show_create_room_dialog(GtkWidget* parent)
 
         // Validate room name
         if (!name || strlen(name) == 0) {
-            snprintf(error_msg, sizeof(error_msg), "Room name cannot be empty!");
+            snprintf(error_msg, sizeof(error_msg), "Tên phòng không được để trống!");
             valid = 0;
         }
         // Validate question bank selection
         else if (!bank || strlen(bank) == 0) {
-            snprintf(error_msg, sizeof(error_msg), "Please select a question bank!");
+            snprintf(error_msg, sizeof(error_msg), "Vui lòng chọn ngân hàng câu hỏi!");
             valid = 0;
         }
         // Validate time format and parse
@@ -298,11 +298,11 @@ static void show_create_room_dialog(GtkWidget* parent)
             char* result_e = strptime(e_time, "%Y-%m-%d %H:%M:%S", &tm_e);
 
             if (!result_s || *result_s != '\0') {
-                snprintf(error_msg, sizeof(error_msg), "Invalid start time format!\nUse: YYYY-MM-DD HH:MM:SS");
+                snprintf(error_msg, sizeof(error_msg), "Thời gian mở không đúng định dạng!\nUse: YYYY-MM-DD HH:MM:SS");
                 valid = 0;
             }
             else if (!result_e || *result_e != '\0') {
-                snprintf(error_msg, sizeof(error_msg), "Invalid end time format!\nUse: YYYY-MM-DD HH:MM:SS");
+                snprintf(error_msg, sizeof(error_msg), "Thời gian đóng không đúng định dạng!\nUse: YYYY-MM-DD HH:MM:SS");
                 valid = 0;
             }
             else {
@@ -312,15 +312,15 @@ static void show_create_room_dialog(GtkWidget* parent)
 
                 // Validate time relationships
                 if (start_ts == -1 || end_ts == -1) {
-                    snprintf(error_msg, sizeof(error_msg), "Invalid date/time values!");
+                    snprintf(error_msg, sizeof(error_msg), "Thời gian không hợp lệ!");
                     valid = 0;
                 }
                 else if (end_ts <= start_ts) {
-                    snprintf(error_msg, sizeof(error_msg), "End time must be after start time!");
+                    snprintf(error_msg, sizeof(error_msg), "Thời gian đóng phải sau thời gian mở!");
                     valid = 0;
                 }
                 else if (duration <= 0) {
-                    snprintf(error_msg, sizeof(error_msg), "Duration must be greater than 0!");
+                    snprintf(error_msg, sizeof(error_msg), "Thời lượng phải lớn hơn 0!");
                     valid = 0;
                 }
                 else {
@@ -522,14 +522,14 @@ static void show_question_bank_editor(GtkWidget* parent, const char* bank_id)
     gtk_container_add(GTK_CONTAINER(g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(vbox)), 0)), tree);
 
     GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
-    GtkWidget* btnAdd = gtk_button_new_with_label("Add Row");
+    GtkWidget* btnAdd = gtk_button_new_with_label("Thêm dòng");
     g_signal_connect(btnAdd, "clicked", G_CALLBACK(on_editor_add), ctx);
 
-    GtkWidget* btnDel = gtk_button_new_with_label("Delete Selected");
+    GtkWidget* btnDel = gtk_button_new_with_label("Xóa dòng");
     g_object_set_data(G_OBJECT(btnDel), "tree", tree);
     g_signal_connect(btnDel, "clicked", G_CALLBACK(on_editor_delete), ctx);
 
-    GtkWidget* btnSave = gtk_button_new_with_label("Save Changes");
+    GtkWidget* btnSave = gtk_button_new_with_label("Lưu thay đổi");
     g_signal_connect(btnSave, "clicked", G_CALLBACK(on_editor_save), ctx);
 
     gtk_container_add(GTK_CONTAINER(bbox), btnAdd);
@@ -911,58 +911,58 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     int row = 0;
     GtkWidget* label;
 
-    label = gtk_label_new("Room ID:");
+    label = gtk_label_new("Mã phòng:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblID, 1, row++, 1, 1);
 
-    label = gtk_label_new("Room Name:");
+    label = gtk_label_new("Tên phòng:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblName, 1, row++, 1, 1);
 
-    label = gtk_label_new("Status:");
+    label = gtk_label_new("Trạng thái:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblStatus, 1, row++, 1, 1);
 
-    label = gtk_label_new("Open Time:");
+    label = gtk_label_new("Mở lúc:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblStart, 1, row++, 1, 1);
 
-    label = gtk_label_new("Close Time:");
+    label = gtk_label_new("Đóng lúc:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblEnd, 1, row++, 1, 1);
 
-    label = gtk_label_new("Question Bank:");
+    label = gtk_label_new("Đề thi:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblBank, 1, row++, 1, 1);
 
-    label = gtk_label_new("Num Questions:");
+    label = gtk_label_new("Số câu hỏi:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblNumQ, 1, row++, 1, 1);
 
-    label = gtk_label_new("Allowed Attempts:");
+    label = gtk_label_new("Số lần làm:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblAttempts, 1, row++, 1, 1);
 
-    label = gtk_label_new("Duration (mins):");
+    label = gtk_label_new("Thời lượng (phút):");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblDuration, 1, row++, 1, 1);
 
-    label = gtk_label_new("Show Answers:");
+    label = gtk_label_new("Cho xem đáp án:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), lblShowAnswers, 1, row++, 1, 1);
 
     // 2. Statistics
-    GtkWidget* lblStats = gtk_label_new("Loading stats...");
+    GtkWidget* lblStats = gtk_label_new("Đang tải...");
     gtk_box_pack_start(GTK_BOX(vbox), lblStats, FALSE, FALSE, 10);
 
     // 3. Participant Results Table
@@ -1100,14 +1100,14 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
             if (room_obj) {
                 cJSON* status_obj = cJSON_GetObjectItem(room_obj, "status");
                 if (status_obj && strcmp(status_obj->valuestring, "OPEN") == 0) {
-                    GtkWidget* btnClose = gtk_button_new_with_label("Close Room");
+                    GtkWidget* btnClose = gtk_button_new_with_label("Đóng phòng");
                     g_object_set_data_full(G_OBJECT(btnClose), "room_id", g_strdup(room_id), g_free);
                     g_signal_connect(btnClose, "clicked", G_CALLBACK(on_close_room_clicked), dialog);
                     gtk_container_add(GTK_CONTAINER(bbox), btnClose);
                 }
             }
 
-            GtkWidget* btnDel = gtk_button_new_with_label("Delete Room");
+            GtkWidget* btnDel = gtk_button_new_with_label("Xóa phòng");
             g_object_set_data_full(G_OBJECT(btnDel), "room_id", g_strdup(room_id), g_free);
             g_signal_connect(btnDel, "clicked", G_CALLBACK(on_delete_room_confirm), dialog);
             gtk_container_add(GTK_CONTAINER(bbox), btnDel);

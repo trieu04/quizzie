@@ -36,7 +36,7 @@ static void on_view_result_clicked(GtkWidget* widget, gpointer data);
 
 void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, const char* username)
 {
-    GtkWidget* window = create_window("Room Details", 700, 600);
+    GtkWidget* window = create_window("Chi tiết phòng", 700, 600);
     *window_out = window;
 
     if (current_room_detail) {
@@ -56,7 +56,7 @@ void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, con
     gtk_container_add(GTK_CONTAINER(window), vbox);
 
     // Title
-    GtkWidget* title_label = gtk_label_new("Room Information");
+    GtkWidget* title_label = gtk_label_new("Thông tin phòng");
     PangoAttrList* attrlist = pango_attr_list_new();
     PangoAttribute* attr = pango_attr_scale_new(1.5);
     pango_attr_list_insert(attrlist, attr);
@@ -72,7 +72,7 @@ void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, con
 
     // Create value labels
     current_room_detail->lblID = gtk_label_new("...");
-    current_room_detail->lblName = gtk_label_new("Loading...");
+    current_room_detail->lblName = gtk_label_new("Đang tải...");
     current_room_detail->lblStatus = gtk_label_new("...");
     current_room_detail->lblStart = gtk_label_new("...");
     current_room_detail->lblEnd = gtk_label_new("...");
@@ -93,42 +93,42 @@ void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, con
     int row = 0;
     GtkWidget* label;
 
-    label = gtk_label_new("Room ID:");
+    label = gtk_label_new("Mã phòng:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblID, 1, row++, 1, 1);
 
-    label = gtk_label_new("Room Name:");
+    label = gtk_label_new("Tên phòng:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblName, 1, row++, 1, 1);
 
-    label = gtk_label_new("Status:");
+    label = gtk_label_new("Trạng thái:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblStatus, 1, row++, 1, 1);
 
-    label = gtk_label_new("Open Time:");
+    label = gtk_label_new("Thời gian mở:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblStart, 1, row++, 1, 1);
 
-    label = gtk_label_new("Close Time:");
+    label = gtk_label_new("Thời gian đóng:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblEnd, 1, row++, 1, 1);
 
-    label = gtk_label_new("Num Questions:");
+    label = gtk_label_new("Số câu hỏi:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblNumQ, 1, row++, 1, 1);
 
-    label = gtk_label_new("Allowed Attempts:");
+    label = gtk_label_new("Số lần làm:");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblAttempts, 1, row++, 1, 1);
 
-    label = gtk_label_new("Duration (mins):");
+    label = gtk_label_new("Thời lượng (phút):");
     gtk_widget_set_halign(label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(grid), label, 0, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), current_room_detail->lblDuration, 1, row++, 1, 1);
@@ -138,7 +138,7 @@ void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, con
     gtk_box_pack_start(GTK_BOX(vbox), separator, FALSE, FALSE, 10);
 
     // Results history area with table
-    GtkWidget* results_title = gtk_label_new("Your Results History:");
+    GtkWidget* results_title = gtk_label_new("Lịch sử kết quả:");
     gtk_label_set_xalign(GTK_LABEL(results_title), 0.0);
     PangoAttrList* results_attrlist = pango_attr_list_new();
     PangoAttribute* results_attr = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
@@ -155,8 +155,8 @@ void ui_show_room_detail_window(GtkWidget** window_out, const char* room_id, con
 
     // Action buttons
     GtkWidget* btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget* btn_back = gtk_button_new_with_label("Back");
-    current_room_detail->start_button = gtk_button_new_with_label("Start Quiz");
+    GtkWidget* btn_back = gtk_button_new_with_label("Quay lại");
+    current_room_detail->start_button = gtk_button_new_with_label("Bắt đầu");
     current_room_detail->view_button = gtk_button_new_with_label("Xem lại bài đã chọn");
 
     g_signal_connect(btn_back, "clicked", G_CALLBACK(on_back_clicked), NULL);
@@ -254,10 +254,10 @@ void room_detail_update_info(cJSON* room_data)
     // Update button text based on exam state
     if (has_active_exam_obj && cJSON_IsBool(has_active_exam_obj) && cJSON_IsTrue(has_active_exam_obj)) {
         current_room_detail->has_active_exam = 1;
-        gtk_button_set_label(GTK_BUTTON(current_room_detail->start_button), "Continue Exam");
+        gtk_button_set_label(GTK_BUTTON(current_room_detail->start_button), "Tiếp tục làm");
     } else {
         current_room_detail->has_active_exam = 0;
-        gtk_button_set_label(GTK_BUTTON(current_room_detail->start_button), "Start Quiz");
+        gtk_button_set_label(GTK_BUTTON(current_room_detail->start_button), "Bắt đầu");
     }
 
     // Create results table with column for timestamp (hidden), show_answers flag, and view button
@@ -306,10 +306,10 @@ void room_detail_update_info(cJSON* room_data)
 
     // Add columns
     GtkCellRenderer* renderer = gtk_cell_renderer_text_new();
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Date & Time", renderer, "text", 0, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Questions", renderer, "text", 1, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Submitted", renderer, "text", 2, NULL);
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Correct", renderer, "text", 3, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Ngày giờ", renderer, "text", 0, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Số câu", renderer, "text", 1, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Đã nộp", renderer, "text", 2, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree_view), -1, "Đúng", renderer, "text", 3, NULL);
 
     // Clear previous content and add new tree view
     GList* children = gtk_container_get_children(GTK_CONTAINER(current_room_detail->results_scroll));
@@ -330,12 +330,12 @@ static void on_start_exam_clicked(GtkWidget* widget, gpointer data)
     if (!current_room_detail)
         return;
 
-    const char* button_text = current_room_detail->has_active_exam ? "continue the quiz" : "start the quiz";
+    const char* button_text = current_room_detail->has_active_exam ? "tiếp tục" : "bắt đầu";
     char message[256];
     snprintf(message, sizeof(message),
-        "Are you ready to %s?\n\n"
-        "Once started, the timer will begin counting down.\n"
-        "Make sure you have enough time to complete the exam.",
+        "Bạn có sẵn sàng %s bài thi?\n\n"
+        "Đồng hồ sẽ bắt đầu đếm ngược khi bạn vào.\n"
+        "Hãy chắc chắn bạn có đủ thời gian để hoàn thành.",
         button_text);
 
     GtkWidget* dialog = gtk_message_dialog_new(GTK_WINDOW(current_room_detail->window),

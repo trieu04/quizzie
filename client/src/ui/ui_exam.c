@@ -20,7 +20,7 @@ static void render_all_questions();
 
 void ui_show_exam_window(GtkWidget** window_out, const char* room_id, cJSON* questions, int* answers, long start_time, int duration_minutes)
 {
-    GtkWidget* window = create_window("Quiz Exam", 900, 700);
+    GtkWidget* window = create_window("Bài thi", 900, 700);
     *window_out = window;
 
     // Initialize exam state
@@ -58,7 +58,7 @@ void ui_show_exam_window(GtkWidget** window_out, const char* room_id, cJSON* que
 
     // Top bar with timer
     GtkWidget* top_bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    current_exam->timer_label = gtk_label_new("Time Remaining: --:--");
+    current_exam->timer_label = gtk_label_new("Thời gian còn lại: --:--");
     PangoAttrList* timer_attrlist = pango_attr_list_new();
     PangoAttribute* timer_attr = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
     pango_attr_list_insert(timer_attrlist, timer_attr);
@@ -68,7 +68,7 @@ void ui_show_exam_window(GtkWidget** window_out, const char* room_id, cJSON* que
     gtk_box_pack_start(GTK_BOX(vbox), top_bar, FALSE, FALSE, 0);
 
     // Instructions
-    GtkWidget* instructions = gtk_label_new("Select your answers for all questions below. Your answers are automatically saved.");
+    GtkWidget* instructions = gtk_label_new("Chọn đáp án cho các câu hỏi. Đáp án sẽ tự động lưu.");
     gtk_label_set_line_wrap(GTK_LABEL(instructions), TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), instructions, FALSE, FALSE, 0);
 
@@ -85,8 +85,8 @@ void ui_show_exam_window(GtkWidget** window_out, const char* room_id, cJSON* que
 
     // Action buttons
     GtkWidget* btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget* btn_leave = gtk_button_new_with_label("Leave Exam");
-    GtkWidget* btn_submit = gtk_button_new_with_label("Submit Exam");
+    GtkWidget* btn_leave = gtk_button_new_with_label("Thoát");
+    GtkWidget* btn_submit = gtk_button_new_with_label("Nộp bài");
 
     g_signal_connect(btn_leave, "clicked", G_CALLBACK(on_leave_btn_clicked), NULL);
     g_signal_connect(btn_submit, "clicked", G_CALLBACK(on_submit_btn_clicked), NULL);
@@ -122,7 +122,7 @@ static void render_all_questions()
 
         // Question number and text
         char question_header[1024];
-        snprintf(question_header, sizeof(question_header), "Question %d: %s",
+        snprintf(question_header, sizeof(question_header), "Câu %d: %s",
             q_idx + 1,
             text && cJSON_IsString(text) ? text->valuestring : "N/A");
 
@@ -198,7 +198,7 @@ static gboolean on_timer_tick(gpointer data)
     int remaining = current_exam->duration_seconds - elapsed;
 
     if (remaining <= 0) {
-        gtk_label_set_text(GTK_LABEL(current_exam->timer_label), "Time's Up!");
+        gtk_label_set_text(GTK_LABEL(current_exam->timer_label), "Hết giờ!");
         // Auto-submit
         exam_controller_on_submit();
         return FALSE;
@@ -207,7 +207,7 @@ static gboolean on_timer_tick(gpointer data)
     int minutes = remaining / 60;
     int seconds = remaining % 60;
     char timer_text[64];
-    snprintf(timer_text, sizeof(timer_text), "Time Remaining: %02d:%02d", minutes, seconds);
+    snprintf(timer_text, sizeof(timer_text), "Thời gian còn lại: %02d:%02d", minutes, seconds);
     gtk_label_set_text(GTK_LABEL(current_exam->timer_label), timer_text);
 
     return TRUE;
@@ -225,7 +225,7 @@ static void on_submit_btn_clicked(GtkWidget* widget, gpointer data)
         GTK_DIALOG_MODAL,
         GTK_MESSAGE_QUESTION,
         GTK_BUTTONS_YES_NO,
-        "Are you sure you want to submit your exam?\n\nYou will not be able to change your answers after submission.");
+        "Bạn có chắc muốn nộp bài?\n\nBạn sẽ không thể thay đổi đáp án sau khi nộp.");
 
     int response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
@@ -247,7 +247,7 @@ static void on_leave_btn_clicked(GtkWidget* widget, gpointer data)
         GTK_DIALOG_MODAL,
         GTK_MESSAGE_QUESTION,
         GTK_BUTTONS_YES_NO,
-        "Are you sure you want to leave the exam?\n\nYour answers have been saved and you can rejoin later.");
+        "Bạn có chắc muốn thoát?\n\nĐáp án đã được lưu và bạn có thể quay lại sau.");
 
     int response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);

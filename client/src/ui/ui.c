@@ -202,6 +202,7 @@ static void handle_server_message(char* msg_type, cJSON* payload)
             const char* role = role_item ? role_item->valuestring : "participant";
 
             if (strcmp(role, "admin") == 0) {
+                transition_window();
                 ui_show_admin_dashboard(&window, &status_label, current_username);
             } else {
                 ui_show_home(current_username);

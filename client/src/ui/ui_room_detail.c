@@ -494,7 +494,8 @@ static void show_exam_review_dialog(GtkWidget* parent, cJSON* review_data)
     GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     GtkWidget* vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 15);
-    gtk_container_add(GTK_CONTAINER(content), vbox);
+    gtk_widget_set_vexpand(vbox, TRUE);
+    gtk_box_pack_start(GTK_BOX(content), vbox, TRUE, TRUE, 0);
 
     // Header with score
     char header_text[256];
@@ -519,6 +520,7 @@ static void show_exam_review_dialog(GtkWidget* parent, cJSON* review_data)
     GtkWidget* scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
         GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_vexpand(scrolled, TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), scrolled, TRUE, TRUE, 0);
 
     // Box to hold all questions

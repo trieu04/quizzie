@@ -333,7 +333,7 @@ static void on_start_exam_clicked(GtkWidget* widget, gpointer data)
     const char* button_text = current_room_detail->has_active_exam ? "tiếp tục" : "bắt đầu";
     char message[256];
     snprintf(message, sizeof(message),
-        "Bạn có sẵn sàng %s bài thi?\n\n"
+        "Bạn có sẵn sàng %s bài thi?\n\n",
         button_text);
 
     GtkWidget* dialog = gtk_message_dialog_new(GTK_WINDOW(current_room_detail->window),

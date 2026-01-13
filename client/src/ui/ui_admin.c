@@ -308,7 +308,6 @@ static void show_create_room_dialog(GtkWidget* parent)
             else {
                 long start_ts = mktime(&tm_s);
                 long end_ts = mktime(&tm_e);
-                time_t now = time(NULL);
 
                 // Validate time relationships
                 if (start_ts == -1 || end_ts == -1) {
@@ -463,7 +462,7 @@ static void on_cell_edited(GtkCellRendererText* renderer, gchar* path_string, gc
 
 static void show_question_bank_editor(GtkWidget* parent, const char* bank_id)
 {
-    GtkWidget* dialog = gtk_dialog_new_with_buttons("Question Bank Editor", GTK_WINDOW(parent),
+    GtkWidget* dialog = gtk_dialog_new_with_buttons("Chỉnh sửa ngân hàng câu hỏi", GTK_WINDOW(parent),
         GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, NULL, NULL);
     gtk_window_set_default_size(GTK_WINDOW(dialog), 800, 500);
 
@@ -494,10 +493,19 @@ static void show_question_bank_editor(GtkWidget* parent, const char* bank_id)
             cJSON* opts = cJSON_GetObjectItem(item, "options");
             cJSON* corr = cJSON_GetObjectItem(item, "correct_index");
 
+            // Skip if essential fields are missing
+            if (!q || !q->valuestring || !corr) {
+                continue;
+            }
+
             char* op[4] = { "", "", "", "" };
-            if (opts) {
-                for (int i = 0; i < 4 && i < cJSON_GetArraySize(opts); i++)
-                    op[i] = cJSON_GetArrayItem(opts, i)->valuestring;
+            if (opts && cJSON_IsArray(opts)) {
+                for (int i = 0; i < 4 && i < cJSON_GetArraySize(opts); i++) {
+                    cJSON* opt_item = cJSON_GetArrayItem(opts, i);
+                    if (opt_item && opt_item->valuestring) {
+                        op[i] = opt_item->valuestring;
+                    }
+                }
             }
 
             gtk_list_store_insert_with_values(ctx->store, NULL, -1, 0, q->valuestring, 1, op[0], 2, op[1], 3, op[2], 4,
@@ -509,7 +517,7 @@ static void show_question_bank_editor(GtkWidget* parent, const char* bank_id)
     GtkWidget* vbox = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     GtkWidget* tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(ctx->store));
 
-    const char* headers[] = { "Question", "Op A", "Op B", "Op C", "Op D", "Correct Idx" };
+    const char* headers[] = { "Câu hỏi", "Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D", "Chỉ số đúng" };
     for (int i = 0; i < 6; i++) {
         GtkCellRenderer* r = gtk_cell_renderer_text_new();
         g_object_set(r, "editable", TRUE, NULL);
@@ -631,14 +639,14 @@ static void on_upload_csv_clicked(GtkWidget* btn, gpointer data)
         cJSON_Delete(req);
 
         GtkWidget* msg = gtk_message_dialog_new(GTK_WINDOW(dialog_window), GTK_DIALOG_MODAL, GTK_MESSAGE_INFO,
-            GTK_BUTTONS_OK, "Questions imported successfully!");
+            GTK_BUTTONS_OK, "Nhập câu hỏi thành công!");
         gtk_dialog_run(GTK_DIALOG(msg));
         gtk_widget_destroy(msg);
 
         refresh_bank_list(tree);
     } else {
         GtkWidget* msg = gtk_message_dialog_new(GTK_WINDOW(dialog_window), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR,
-            GTK_BUTTONS_OK, "Failed to open file.");
+            GTK_BUTTONS_OK, "Không thể mở tệp.");
         gtk_dialog_run(GTK_DIALOG(msg));
         gtk_widget_destroy(msg);
     }
@@ -679,7 +687,7 @@ static void on_manage_delete_clicked(GtkWidget* btn, gpointer data)
         GtkWidget* dialog = gtk_widget_get_toplevel(GTK_WIDGET(tree));
 
         GtkWidget* msg = gtk_message_dialog_new(GTK_WINDOW(dialog), GTK_DIALOG_MODAL, GTK_MESSAGE_QUESTION,
-            GTK_BUTTONS_YES_NO, "Are you sure you want to delete '%s'?", bank_id);
+            GTK_BUTTONS_YES_NO, "Bạn có chắc chắn muốn xóa '%s'?", bank_id);
         if (gtk_dialog_run(GTK_DIALOG(msg)) == GTK_RESPONSE_YES) {
             cJSON* req = cJSON_CreateObject();
             cJSON_AddStringToObject(req, "action", "DELETE_QUESTION_BANK");
@@ -707,8 +715,8 @@ static void on_manage_delete_clicked(GtkWidget* btn, gpointer data)
 
 static void show_manage_questions_dialog(GtkWidget* parent)
 {
-    GtkWidget* dialog = gtk_dialog_new_with_buttons("Manage Question Banks", GTK_WINDOW(parent),
-        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Close",
+    GtkWidget* dialog = gtk_dialog_new_with_buttons("Quản lý ngân hàng câu hỏi", GTK_WINDOW(parent),
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Đóng",
         GTK_RESPONSE_CANCEL, NULL);
     gtk_window_set_default_size(GTK_WINDOW(dialog), 700,
         600); // Increased height
@@ -719,29 +727,29 @@ static void show_manage_questions_dialog(GtkWidget* parent)
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 10);
 
     // --- Import Section ---
-    GtkWidget* frame_imp = gtk_frame_new("Import New Bank");
+    GtkWidget* frame_imp = gtk_frame_new("Nhập ngân hàng mới");
     GtkWidget* hbox_imp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_container_add(GTK_CONTAINER(frame_imp), hbox_imp);
     gtk_container_set_border_width(GTK_CONTAINER(hbox_imp), 5);
 
-    GtkWidget* chooser = gtk_file_chooser_button_new("Select CSV File", GTK_FILE_CHOOSER_ACTION_OPEN);
-    GtkWidget* btnUpload = gtk_button_new_with_label("Upload");
+    GtkWidget* chooser = gtk_file_chooser_button_new("Chọn tệp CSV", GTK_FILE_CHOOSER_ACTION_OPEN);
+    GtkWidget* btnUpload = gtk_button_new_with_label("Tải lên");
     GtkWidget* entryName = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(entryName), "New Bank Name");
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entryName), "Tên ngân hàng mới");
 
-    gtk_box_pack_start(GTK_BOX(hbox_imp), gtk_label_new("Name:"), FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(hbox_imp), gtk_label_new("Tên:"), FALSE, FALSE, 5);
     gtk_box_pack_start(GTK_BOX(hbox_imp), entryName, TRUE, TRUE, 5);
     gtk_box_pack_start(GTK_BOX(hbox_imp), chooser, TRUE, TRUE, 5);
     gtk_box_pack_start(GTK_BOX(hbox_imp), btnUpload, FALSE, FALSE, 5);
 
     gtk_box_pack_start(GTK_BOX(vbox), frame_imp, FALSE, FALSE, 0);
 
-    GtkWidget* lblHint = gtk_label_new("CSV Format: Question,OptionA,OptionB,OptionC,OptionD,CorrectIndex(0-3)");
+    GtkWidget* lblHint = gtk_label_new("Định dạng CSV: Câu hỏi,Đáp án A,Đáp án B,Đáp án C,Đáp án D,Chỉ số đúng(0-3)");
     gtk_widget_set_halign(lblHint, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(vbox), lblHint, FALSE, FALSE, 5);
 
     // --- List Section ---
-    GtkWidget* frame_list = gtk_frame_new("Available Question Banks");
+    GtkWidget* frame_list = gtk_frame_new("Ngân hàng câu hỏi có sẵn");
     gtk_box_pack_start(GTK_BOX(vbox), frame_list, TRUE, TRUE, 5);
 
     GtkWidget* vbox_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
@@ -751,7 +759,7 @@ static void show_manage_questions_dialog(GtkWidget* parent)
     GtkListStore* bank_store = gtk_list_store_new(1, G_TYPE_STRING);
     GtkWidget* tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(bank_store));
     GtkCellRenderer* renderer = gtk_cell_renderer_text_new();
-    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree), -1, "Bank Name (ID)", renderer, "text", 0, NULL);
+    gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tree), -1, "Tên ngân hàng (ID)", renderer, "text", 0, NULL);
 
     GtkWidget* scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_widget_set_size_request(scroll, -1, 300); // Set min height for table
@@ -761,8 +769,8 @@ static void show_manage_questions_dialog(GtkWidget* parent)
     GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_button_box_set_layout(GTK_BUTTON_BOX(bbox), GTK_BUTTONBOX_END);
 
-    GtkWidget* btnDelete = gtk_button_new_with_label("Delete Selected");
-    GtkWidget* btnEdit = gtk_button_new_with_label("Edit Selected");
+    GtkWidget* btnDelete = gtk_button_new_with_label("Xóa mục đã chọn");
+    GtkWidget* btnEdit = gtk_button_new_with_label("Sửa mục đã chọn");
 
     gtk_container_add(GTK_CONTAINER(bbox), btnDelete);
     gtk_container_add(GTK_CONTAINER(bbox), btnEdit);
@@ -1113,7 +1121,18 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
             gtk_container_add(GTK_CONTAINER(bbox), btnDel);
         }
         cJSON_Delete(resp);
-    } // TODO: Handle error case (e.g. show "Failed to load")
+    } else {
+        // Handle error case: show "Failed to load" message
+        gtk_label_set_text(GTK_LABEL(lblStatus), "Không tải được");
+        gtk_label_set_text(GTK_LABEL(lblStart), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblEnd), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblBank), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblNumQ), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblAttempts), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblDuration), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblShowAnswers), "N/A");
+        gtk_label_set_text(GTK_LABEL(lblStats), "Không thể tải dữ liệu thống kê");
+    }
 
     gtk_widget_show_all(dialog);
     gtk_dialog_run(GTK_DIALOG(dialog));

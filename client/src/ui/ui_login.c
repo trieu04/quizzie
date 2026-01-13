@@ -31,6 +31,20 @@ static void on_login_btn_clicked(GtkWidget* widget, gpointer data)
     login_controller_on_login(ip, port, username, password);
 }
 
+static void on_register_btn_clicked(GtkWidget* widget, gpointer data)
+{
+    (void)widget;
+    LoginWidgets* widgets = (LoginWidgets*)data;
+
+    const char* ip = gtk_entry_get_text(GTK_ENTRY(widgets->entry_ip));
+    const char* port_str = gtk_entry_get_text(GTK_ENTRY(widgets->entry_port));
+    const char* username = gtk_entry_get_text(GTK_ENTRY(widgets->entry_username));
+    const char* password = gtk_entry_get_text(GTK_ENTRY(widgets->entry_password));
+
+    int port = atoi(port_str);
+    login_controller_on_register(ip, port, username, password);
+}
+
 static void on_window_destroy(GtkWidget* widget, gpointer data)
 {
     (void)widget;
@@ -82,10 +96,15 @@ void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)
     GtkWidget* btn_login = gtk_button_new_with_label("Đăng nhập");
     g_signal_connect(btn_login, "clicked", G_CALLBACK(on_login_btn_clicked), widgets);
 
+    // Register Button
+    GtkWidget* btn_register = gtk_button_new_with_label("Đăng ký");
+    g_signal_connect(btn_register, "clicked", G_CALLBACK(on_register_btn_clicked), widgets);
+
     // Clean up struct when window is destroyed
     g_signal_connect(window, "destroy", G_CALLBACK(on_window_destroy), widgets);
 
-    gtk_grid_attach(GTK_GRID(grid), btn_login, 1, 3, 2, 1);
+    gtk_grid_attach(GTK_GRID(grid), btn_login, 1, 3, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), btn_register, 2, 3, 1, 1);
 
     // Status Bar
     *status_label_out = gtk_label_new("Trạng thái: Disconnected");

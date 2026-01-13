@@ -158,6 +158,30 @@ void login_controller_on_login(const char* ip, int port, const char* username, c
     cJSON_Delete(req);
 }
 
+void login_controller_on_register(const char* ip, int port, const char* username, const char* password)
+{
+    if (ensure_connection(ip, port) < 0)
+        return;
+
+    if (strlen(username) == 0 || strlen(password) == 0) {
+        show_message("Vui lòng nhập tài khoản và mật khẩu.", GTK_MESSAGE_INFO);
+        return;
+    }
+
+    cJSON* req = cJSON_CreateObject();
+    cJSON_AddStringToObject(req, JSON_KEY_ACTION, ACTION_REGISTER);
+
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddStringToObject(data, JSON_KEY_USERNAME, username);
+    cJSON_AddStringToObject(data, JSON_KEY_PASSWORD, password);
+    cJSON_AddItemToObject(req, JSON_KEY_DATA, data);
+
+    if (send_packet(sock, MSG_TYPE_REQ, req) < 0) {
+        update_status("Status: Send Failed");
+    }
+    cJSON_Delete(req);
+}
+
 void home_controller_on_logout()
 {
     if (sock < 0)
@@ -208,6 +232,8 @@ static void handle_server_message(char* msg_type, cJSON* payload)
                 ui_show_home(current_username);
             }
             g_timeout_add(5000, send_heartbeat, NULL);
+        } else if (strcmp(msg, "Register successful") == 0) {
+            show_message("Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.", GTK_MESSAGE_INFO);
         } else if (data) {
             // Handle different response types based on data structure
 

@@ -33,7 +33,14 @@ void handle_create_room(int client_idx, cJSON* data)
     room.start_time = (long)start->valuedouble;
     room.end_time = (long)end->valuedouble;
     strncpy(room.question_bank_id, bank->valuestring, sizeof(room.question_bank_id) - 1);
-    strcpy(room.status, "OPEN");
+
+    time_t now = time(NULL);
+    if (now < room.start_time) {
+        strcpy(room.status, "WAITING");
+    } else {
+        strcpy(room.status, "OPEN");
+    }
+
     room.num_questions = num_q ? num_q->valueint : 10;
     room.allowed_attempts = attempts ? attempts->valueint : 1;
     room.duration = duration ? duration->valueint : 0;

@@ -39,11 +39,18 @@ void check_and_close_expired_rooms()
     {
         cJSON* id = cJSON_GetObjectItem(room, "id");
         cJSON* status = cJSON_GetObjectItem(room, "status");
+        cJSON* start_time = cJSON_GetObjectItem(room, "start_time");
         cJSON* end_time = cJSON_GetObjectItem(room, "end_time");
 
         if (id && status && end_time) {
+            // If room is WAITING and current time >= start_time, open it
+            if (start_time && strcmp(status->valuestring, "WAITING") == 0 && now >= (time_t)start_time->valuedouble) {
+                printf("Auto-opening room %s (start at %ld, now is %ld)\n",
+                       id->valuestring, (long)start_time->valuedouble, (long)now);
+                storage_update_room_status(id->valuestring, "OPEN");
+            }
             // If room is OPEN and current time > end_time, close it
-            if (strcmp(status->valuestring, "OPEN") == 0 && now > (time_t)end_time->valuedouble) {
+            else if (strcmp(status->valuestring, "OPEN") == 0 && now > (time_t)end_time->valuedouble) {
                 printf("Auto-closing room %s (expired at %ld, now is %ld)\n",
                        id->valuestring, (long)end_time->valuedouble, (long)now);
                 storage_update_room_status(id->valuestring, "CLOSED");

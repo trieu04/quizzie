@@ -137,10 +137,16 @@ static void render_all_questions()
         gtk_box_pack_start(GTK_BOX(question_box), question_label, FALSE, FALSE, 0);
 
         // Radio buttons for options
-        GSList* radio_group = NULL;
         if (options && cJSON_IsArray(options)) {
             int num_options = cJSON_GetArraySize(options);
             int current_answer = current_exam->user_answers[q_idx];
+
+            // Create a hidden dummy radio button to allow "no selection" state
+            // GTK radio groups require at least one button to be active
+            GtkWidget* dummy_radio = gtk_radio_button_new(NULL);
+            gtk_widget_set_no_show_all(dummy_radio, TRUE);
+            gtk_box_pack_start(GTK_BOX(question_box), dummy_radio, FALSE, FALSE, 0);
+            GSList* radio_group = gtk_radio_button_get_group(GTK_RADIO_BUTTON(dummy_radio));
 
             for (int opt_idx = 0; opt_idx < num_options; opt_idx++) {
                 cJSON* opt = cJSON_GetArrayItem(options, opt_idx);
@@ -152,7 +158,7 @@ static void render_all_questions()
                     radio_group = gtk_radio_button_get_group(GTK_RADIO_BUTTON(radio_btn));
 
                     // Set active if this was previously answered
-                    if (current_answer != -1 && current_answer == opt_idx) {
+                    if (current_answer == opt_idx) {
                         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio_btn), TRUE);
                     }
 
@@ -162,18 +168,6 @@ static void render_all_questions()
                     g_signal_connect(radio_btn, "toggled", G_CALLBACK(on_radio_toggled), GINT_TO_POINTER(packed_data));
 
                     gtk_box_pack_start(GTK_BOX(question_box), radio_btn, FALSE, FALSE, 0);
-                }
-            }
-
-            // If no answer selected, unset the default selection
-            if (current_answer == -1 && radio_group != NULL) {
-                // Get the first radio button from the group
-                GtkWidget* first_radio = GTK_WIDGET(g_slist_nth_data(radio_group, g_slist_length(radio_group) - 1));
-                if (first_radio) {
-                    // Temporarily block the signal to prevent triggering answer save
-                    g_signal_handlers_block_matched(first_radio, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, (gpointer)on_radio_toggled, NULL);
-                    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(first_radio), FALSE);
-                    g_signal_handlers_unblock_matched(first_radio, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, (gpointer)on_radio_toggled, NULL);
                 }
             }
         }

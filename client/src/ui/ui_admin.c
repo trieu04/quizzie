@@ -16,6 +16,8 @@ static void on_manage_questions_clicked(GtkWidget* widget, gpointer data);
 static void on_refresh_clicked(GtkWidget* widget, gpointer data);
 static void on_logout_clicked(GtkWidget* widget, gpointer data);
 static void on_room_details_clicked(GtkWidget* widget, gpointer data);
+static void on_detail_refresh_clicked(GtkWidget* btn, gpointer data);
+static void show_room_details_dialog(GtkWidget* parent, const char* room_id, const char* room_name);
 static void show_create_room_dialog(GtkWidget* parent);
 static void show_manage_questions_dialog(GtkWidget* parent);
 static void show_question_bank_editor(GtkWidget* parent, const char* bank_id);
@@ -733,7 +735,7 @@ static void show_manage_questions_dialog(GtkWidget* parent)
     gtk_container_set_border_width(GTK_CONTAINER(hbox_imp), 5);
 
     GtkWidget* chooser = gtk_file_chooser_button_new("Chọn tệp CSV", GTK_FILE_CHOOSER_ACTION_OPEN);
-    GtkWidget* btnUpload = gtk_button_new_with_label("Tải lên");
+    GtkWidget* btnUpload = gtk_button_new_with_label("Nhập");
     GtkWidget* entryName = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entryName), "Tên ngân hàng mới");
 
@@ -769,8 +771,8 @@ static void show_manage_questions_dialog(GtkWidget* parent)
     GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_button_box_set_layout(GTK_BUTTON_BOX(bbox), GTK_BUTTONBOX_END);
 
-    GtkWidget* btnDelete = gtk_button_new_with_label("Xóa mục đã chọn");
-    GtkWidget* btnEdit = gtk_button_new_with_label("Sửa mục đã chọn");
+    GtkWidget* btnDelete = gtk_button_new_with_label("Xóa");
+    GtkWidget* btnEdit = gtk_button_new_with_label("Xem chi tiết");
 
     gtk_container_add(GTK_CONTAINER(bbox), btnDelete);
     gtk_container_add(GTK_CONTAINER(bbox), btnEdit);
@@ -873,13 +875,26 @@ static void on_delete_room_confirm(GtkWidget* btn, gpointer data)
     gtk_widget_destroy(msg);
 }
 
+static void on_detail_refresh_clicked(GtkWidget* btn, gpointer data)
+{
+    (void)data;
+    const char* room_id = (const char*)g_object_get_data(G_OBJECT(btn), "room_id");
+    const char* room_name = (const char*)g_object_get_data(G_OBJECT(btn), "room_name");
+    GtkWidget* dialog = (GtkWidget*)g_object_get_data(G_OBJECT(btn), "dialog");
+
+    if (room_id && room_name && dialog) {
+        GtkWidget* parent = GTK_WIDGET(gtk_window_get_transient_for(GTK_WINDOW(dialog)));
+        gtk_widget_destroy(dialog);
+        show_room_details_dialog(parent, room_id, room_name);
+    }
+}
+
 static void show_room_details_dialog(GtkWidget* parent, const char* room_id, const char* room_name)
 {
     GtkWidget* dialog = gtk_dialog_new_with_buttons("Room Details", GTK_WINDOW(parent),
         GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Close",
         GTK_RESPONSE_CANCEL, NULL);
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 600,
-        600); // Increased height
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 600, 600);
 
     GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     GtkWidget* vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -892,7 +907,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     gtk_grid_set_column_spacing(GTK_GRID(grid), 15);
     gtk_box_pack_start(GTK_BOX(vbox), grid, FALSE, FALSE, 5);
 
-    // Labels (Placeholders, will fill after fetch)
+    // Labels
     GtkWidget* lblID = gtk_label_new(room_id);
     GtkWidget* lblName = gtk_label_new(room_name);
     GtkWidget* lblStatus = gtk_label_new("Loading...");
@@ -904,7 +919,6 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     GtkWidget* lblDuration = gtk_label_new("...");
     GtkWidget* lblShowAnswers = gtk_label_new("...");
 
-    // Set alignment: values align left
     gtk_widget_set_halign(lblID, GTK_ALIGN_START);
     gtk_widget_set_halign(lblName, GTK_ALIGN_START);
     gtk_widget_set_halign(lblStatus, GTK_ALIGN_START);
@@ -973,6 +987,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     GtkWidget* lblStats = gtk_label_new("Đang tải...");
     gtk_box_pack_start(GTK_BOX(vbox), lblStats, FALSE, FALSE, 10);
 
+
     // 3. Participant Results Table
     GtkWidget* frame = gtk_frame_new("Participant Results");
     gtk_box_pack_start(GTK_BOX(vbox), frame, TRUE, TRUE, 5);
@@ -996,7 +1011,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
 
     GtkWidget* scroll = gtk_scrolled_window_new(NULL, NULL);
-    gtk_widget_set_size_request(scroll, -1, 300); // Taller list request
+    gtk_widget_set_size_request(scroll, -1, 300);
     gtk_container_add(GTK_CONTAINER(scroll), tree);
     gtk_container_add(GTK_CONTAINER(frame), scroll);
 
@@ -1014,7 +1029,6 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     if (receive_packet(ui_get_socket(), type, &resp) == 0 && strcmp(type, "RES") == 0) {
         cJSON* data = cJSON_GetObjectItem(resp, "data");
         if (data) {
-            // 1. Fill Room Info
             cJSON* r = cJSON_GetObjectItem(data, "room");
             if (r) {
                 cJSON* st = cJSON_GetObjectItem(r, "status");
@@ -1026,28 +1040,14 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                 cJSON* dur = cJSON_GetObjectItem(r, "duration");
                 cJSON* show_ans = cJSON_GetObjectItem(r, "show_answers");
 
-                if (st)
-                    gtk_label_set_text(GTK_LABEL(lblStatus), st->valuestring);
-                if (bid)
-                    gtk_label_set_text(GTK_LABEL(lblBank), bid->valuestring);
+                if (st) gtk_label_set_text(GTK_LABEL(lblStatus), st->valuestring);
+                if (bid) gtk_label_set_text(GTK_LABEL(lblBank), bid->valuestring);
 
                 char buf[64];
-                if (nq) {
-                    snprintf(buf, sizeof(buf), "%d", nq->valueint);
-                    gtk_label_set_text(GTK_LABEL(lblNumQ), buf);
-                }
-                if (aa) {
-                    snprintf(buf, sizeof(buf), "%d", aa->valueint);
-                    gtk_label_set_text(GTK_LABEL(lblAttempts), buf);
-                }
-                if (dur) {
-                    snprintf(buf, sizeof(buf), "%d", dur->valueint);
-                    gtk_label_set_text(GTK_LABEL(lblDuration), buf);
-                }
-                if (show_ans) {
-                    int show_val = show_ans->valueint;
-                    gtk_label_set_text(GTK_LABEL(lblShowAnswers), show_val ? "Yes" : "No");
-                }
+                if (nq) { snprintf(buf, sizeof(buf), "%d", nq->valueint); gtk_label_set_text(GTK_LABEL(lblNumQ), buf); }
+                if (aa) { snprintf(buf, sizeof(buf), "%d", aa->valueint); gtk_label_set_text(GTK_LABEL(lblAttempts), buf); }
+                if (dur) { snprintf(buf, sizeof(buf), "%d", dur->valueint); gtk_label_set_text(GTK_LABEL(lblDuration), buf); }
+                if (show_ans) { int show_val = show_ans->valueint; gtk_label_set_text(GTK_LABEL(lblShowAnswers), show_val ? "Yes" : "No"); }
 
                 if (stime) {
                     time_t t = (time_t)stime->valuedouble;
@@ -1061,49 +1061,45 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                 }
             }
 
-            // 2. Stats
             cJSON* stats = cJSON_GetObjectItem(data, "stats");
-            int total = 0;
-            double avg = 0.0;
+            int total = 0; double avg = 0.0;
             if (stats) {
                 cJSON* t = cJSON_GetObjectItem(stats, "total_attempts");
                 cJSON* a = cJSON_GetObjectItem(stats, "average_score");
-                if (t)
-                    total = t->valueint;
-                if (a)
-                    avg = a->valuedouble;
+                if (t) total = t->valueint;
+                if (a) avg = a->valuedouble;
             }
             char stat_str[128];
             snprintf(stat_str, sizeof(stat_str), "Total Attempts: %d   Average Score: %.2f", total, avg);
             gtk_label_set_text(GTK_LABEL(lblStats), stat_str);
 
-            // 3. Results
             cJSON* results = cJSON_GetObjectItem(data, "results");
             cJSON* res;
-            cJSON_ArrayForEach(res, results)
-            {
+            cJSON_ArrayForEach(res, results) {
                 cJSON* u = cJSON_GetObjectItem(res, "username");
                 cJSON* s = cJSON_GetObjectItem(res, "score");
                 cJSON* tm = cJSON_GetObjectItem(res, "timestamp");
-
                 char time_str[32] = "Unknown";
                 if (tm) {
                     time_t t = (time_t)tm->valuedouble;
-                    if (t == 0)
-                        t = time(NULL);
+                    if (t == 0) t = time(NULL);
                     strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M", localtime(&t));
                 }
-
-                gtk_list_store_insert_with_values(res_store, NULL, -1, 0, u ? u->valuestring : "?", 1,
-                    s ? s->valueint : 0, 2, time_str, -1);
+                gtk_list_store_insert_with_values(res_store, NULL, -1, 0, u ? u->valuestring : "?", 1, s ? s->valueint : 0, 2, time_str, -1);
             }
 
-            // 4. Actions - moved here to access 'data' variable
             GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
             gtk_button_box_set_layout(GTK_BUTTON_BOX(bbox), GTK_BUTTONBOX_END);
+            gtk_box_set_spacing(GTK_BOX(bbox), 10);
             gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 5);
 
-            // Only show Close button if room status is OPEN
+            GtkWidget* detail_refresh_btn = gtk_button_new_with_label("Làm mới");
+            g_object_set_data_full(G_OBJECT(detail_refresh_btn), "room_id", g_strdup(room_id), g_free);
+            g_object_set_data_full(G_OBJECT(detail_refresh_btn), "room_name", g_strdup(room_name), g_free);
+            g_object_set_data(G_OBJECT(detail_refresh_btn), "dialog", dialog);
+            g_signal_connect(detail_refresh_btn, "clicked", G_CALLBACK(on_detail_refresh_clicked), NULL);
+            gtk_container_add(GTK_CONTAINER(bbox), detail_refresh_btn);
+
             cJSON* room_obj = cJSON_GetObjectItem(data, "room");
             if (room_obj) {
                 cJSON* status_obj = cJSON_GetObjectItem(room_obj, "status");
@@ -1122,15 +1118,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
         }
         cJSON_Delete(resp);
     } else {
-        // Handle error case: show "Failed to load" message
         gtk_label_set_text(GTK_LABEL(lblStatus), "Không tải được");
-        gtk_label_set_text(GTK_LABEL(lblStart), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblEnd), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblBank), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblNumQ), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblAttempts), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblDuration), "N/A");
-        gtk_label_set_text(GTK_LABEL(lblShowAnswers), "N/A");
         gtk_label_set_text(GTK_LABEL(lblStats), "Không thể tải dữ liệu thống kê");
     }
 

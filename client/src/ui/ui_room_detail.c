@@ -334,8 +334,6 @@ static void on_start_exam_clicked(GtkWidget* widget, gpointer data)
     char message[256];
     snprintf(message, sizeof(message),
         "Bạn có sẵn sàng %s bài thi?\n\n"
-        "Đồng hồ sẽ bắt đầu đếm ngược khi bạn vào.\n"
-        "Hãy chắc chắn bạn có đủ thời gian để hoàn thành.",
         button_text);
 
     GtkWidget* dialog = gtk_message_dialog_new(GTK_WINDOW(current_room_detail->window),

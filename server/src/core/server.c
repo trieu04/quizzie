@@ -2,6 +2,7 @@
 #include "net.h"
 #include "server.h"
 #include "storage.h"
+#include "logger.h"
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -9,6 +10,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define POLL_TIMEOUT_MS 5000 // 5 seconds to check room status periodically
 #define DEFAULT_PORT 8080
@@ -18,6 +20,8 @@ int main(int argc, char* argv[])
 {
     signal(SIGPIPE, SIG_IGN);
 
+    logger_init("server.log");
+
     int port = DEFAULT_PORT;
     if (argc > 1) {
         port = atoi(argv[1]);
@@ -25,6 +29,8 @@ int main(int argc, char* argv[])
 
     storage_init();
     server_start(port);
+
+    logger_cleanup();
     return 0;
 }
 
@@ -45,13 +51,13 @@ void check_and_close_expired_rooms()
         if (id && status && end_time) {
             // If room is WAITING and current time >= start_time, open it
             if (start_time && strcmp(status->valuestring, "WAITING") == 0 && now >= (time_t)start_time->valuedouble) {
-                printf("Auto-opening room %s (start at %ld, now is %ld)\n",
+                LOG_INFO("Auto-opening room %s (start at %ld, now is %ld)",
                        id->valuestring, (long)start_time->valuedouble, (long)now);
                 storage_update_room_status(id->valuestring, "OPEN");
             }
             // If room is OPEN and current time > end_time, close it
             else if (strcmp(status->valuestring, "OPEN") == 0 && now > (time_t)end_time->valuedouble) {
-                printf("Auto-closing room %s (expired at %ld, now is %ld)\n",
+                LOG_INFO("Auto-closing room %s (expired at %ld, now is %ld)",
                        id->valuestring, (long)end_time->valuedouble, (long)now);
                 storage_update_room_status(id->valuestring, "CLOSED");
             }
@@ -65,7 +71,7 @@ void server_start(int port)
 {
     int server_fd = net_listen(port);
     if (server_fd < 0) {
-        fprintf(stderr, "Failed to start server\n");
+        LOG_ERROR("Failed to start server");
         exit(1);
     }
 
@@ -76,15 +82,14 @@ void server_start(int port)
     fds[0].fd = server_fd;
     fds[0].events = POLLIN;
 
-    printf("Server loop started on port %d...\n", port);
-    fflush(stdout);
+    LOG_INFO("Server loop started on port %d...", port);
 
     time_t last_check = time(NULL);
 
     while (1) {
         int ret = poll(fds, MAX_CLIENTS + 1, POLL_TIMEOUT_MS);
         if (ret < 0) {
-            perror("poll");
+            LOG_ERROR("poll error: %s", strerror(errno));
             break;
         }
 

@@ -6,8 +6,10 @@
 #include "question_handler.h"
 #include "room_handler.h"
 #include "storage.h"
+#include "logger.h"
 #include <arpa/inet.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -54,7 +56,7 @@ void client_add(int server_fd)
     if (new_socket < 0)
         return;
 
-    printf("New connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    LOG_INFO("New connection from %s:%d", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
     int added = 0;
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -73,7 +75,7 @@ void client_add(int server_fd)
     }
 
     if (!added) {
-        printf("Max clients reached. Rejecting connection.\n");
+        LOG_INFO("Max clients reached. Rejecting connection.");
         close(new_socket);
     }
 }
@@ -97,15 +99,16 @@ void client_handle_activity(int client_idx)
     int res = receive_packet(clients[client_idx].fd, msg_type, &payload);
 
     if (res == 0) {
-        printf("Received %s from client %d\n", msg_type, client_idx);
-        fflush(stdout);
+        char* json_str = cJSON_PrintUnformatted(payload);
+        LOG_INFO("Received %s from client %d: %s", msg_type, client_idx, json_str ? json_str : "NULL");
+        if (json_str)
+            free(json_str);
         process_message(client_idx, msg_type, payload);
         cJSON_Delete(payload);
     } else if (res == -3) {
-        printf("Parse error from client %d\n", client_idx);
+        LOG_INFO("Parse error from client %d", client_idx);
     } else {
-        printf("Client %d disconnected\n", client_idx);
-        fflush(stdout);
+        LOG_INFO("Client %d disconnected", client_idx);
         handle_logout(client_idx);
         client_remove(client_idx);
     }
@@ -141,7 +144,7 @@ void client_set_logged_in(int client_idx, const char* username)
 void client_logout(int client_idx)
 {
     if (clients[client_idx].is_logged_in) {
-        printf("User %s logged out\n", clients[client_idx].username);
+        LOG_INFO("User %s logged out", clients[client_idx].username);
         clients[client_idx].is_logged_in = 0;
         clients[client_idx].username[0] = '\0';
     }
@@ -152,7 +155,7 @@ void client_kick_duplicate_user(const char* username, int except_idx)
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (i != except_idx && clients[i].is_logged_in && strcmp(clients[i].username, username) == 0) {
             client_send_error(i, "Logged in from another location");
-            printf("Kicking user %s (client %d)\n", username, i);
+            LOG_INFO("Kicking user %s (client %d)", username, i);
             client_remove(i);
         }
     }
@@ -160,6 +163,10 @@ void client_kick_duplicate_user(const char* username, int except_idx)
 
 void client_send_response(int client_idx, const char* msg_type, cJSON* payload)
 {
+    char* json_str = cJSON_PrintUnformatted(payload);
+    LOG_INFO("Sent %s to client %d: %s", msg_type, client_idx, json_str ? json_str : "NULL");
+    if (json_str)
+        free(json_str);
     send_packet(clients[client_idx].fd, msg_type, payload);
 }
 

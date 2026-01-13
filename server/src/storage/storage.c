@@ -1,5 +1,6 @@
 #include "storage.h"
 #include "cJSON.h"
+#include "logger.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,9 +37,9 @@ void storage_init()
     mkdir(QUESTION_BANK_DIR, 0777);
 
     if (storage_load_users(user_file_path) < 0) {
-        printf("Failed to load users from %s\n", user_file_path);
+        LOG_ERROR("Failed to load users from %s", user_file_path);
     } else {
-        printf("Loaded %d users.\n", user_count);
+        LOG_INFO("Loaded %d users.", user_count);
     }
 }
 

@@ -1,4 +1,5 @@
 #include "net.h"
+#include "logger.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
@@ -15,13 +16,13 @@ int net_listen(int port)
 
     // Creating socket file descriptor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("socket failed");
+        LOG_ERROR("socket failed: %s", strerror(errno));
         return -1;
     }
 
     // Forcefully attaching socket to the port
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        perror("setsockopt");
+        LOG_ERROR("setsockopt error: %s", strerror(errno));
         close(server_fd);
         return -1;
     }
@@ -32,14 +33,14 @@ int net_listen(int port)
 
     // Bind
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind failed");
+        LOG_ERROR("bind failed: %s", strerror(errno));
         close(server_fd);
         return -1;
     }
 
     // Listen
     if (listen(server_fd, 3) < 0) {
-        perror("listen");
+        LOG_ERROR("listen error: %s", strerror(errno));
         close(server_fd);
         return -1;
     }

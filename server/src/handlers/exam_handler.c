@@ -39,26 +39,34 @@ void handle_join_room(int client_idx, cJSON* data)
         return;
     }
 
-    // Check room status based on current time
-    time_t now = time(NULL);
-    cJSON* start_time_obj = cJSON_GetObjectItem(room, "start_time");
-    cJSON* end_time_obj = cJSON_GetObjectItem(room, "end_time");
+    // Check room status
+    cJSON* status_obj = cJSON_GetObjectItem(room, "status");
     cJSON* allowed_attempts_obj = cJSON_GetObjectItem(room, "allowed_attempts");
     cJSON* duration_obj = cJSON_GetObjectItem(room, "duration");
     cJSON* num_questions_obj = cJSON_GetObjectItem(room, "num_questions");
     cJSON* question_bank_id_obj = cJSON_GetObjectItem(room, "question_bank_id");
 
-    long start_time = (long)start_time_obj->valuedouble;
-    long end_time = (long)end_time_obj->valuedouble;
+    if (!status_obj || !cJSON_IsString(status_obj)) {
+        cJSON_Delete(room);
+        client_send_error(client_idx, "Invalid room status");
+        return;
+    }
 
-    if (now < start_time) {
+    if (strcmp(status_obj->valuestring, "WAITING") == 0) {
         cJSON_Delete(room);
         client_send_error(client_idx, "Room not open yet");
         return;
     }
-    if (now > end_time) {
+
+    if (strcmp(status_obj->valuestring, "CLOSED") == 0) {
         cJSON_Delete(room);
         client_send_error(client_idx, "Room already closed");
+        return;
+    }
+
+    if (strcmp(status_obj->valuestring, "OPEN") != 0) {
+        cJSON_Delete(room);
+        client_send_error(client_idx, "Room is not open for joining");
         return;
     }
 
@@ -114,11 +122,11 @@ void handle_join_room(int client_idx, cJSON* data)
     cJSON* selected_questions_with_answers = cJSON_CreateArray();
     for (int i = 0; i < num_questions; i++) {
         cJSON* q = cJSON_GetArrayItem(all_questions, i);
-        // For client: copy without correct_answer
+        // For client: copy without correct_index
         cJSON* q_copy = cJSON_Duplicate(q, 1);
-        cJSON_DeleteItemFromObject(q_copy, "correct_answer");
+        cJSON_DeleteItemFromObject(q_copy, "correct_index");
         cJSON_AddItemToArray(selected_questions, q_copy);
-        // For server session: keep correct_answer
+        // For server session: keep correct_index
         cJSON_AddItemToArray(selected_questions_with_answers, cJSON_Duplicate(q, 1));
     }
 
@@ -226,10 +234,10 @@ void handle_finish_exam(int client_idx, cJSON* data)
     for (int i = 0; i < num_questions; i++) {
         cJSON* question = cJSON_GetArrayItem(session->questions, i);
         cJSON* user_answer = cJSON_GetArrayItem(session->answers, i);
-        cJSON* correct_answer = cJSON_GetObjectItem(question, "correct_answer");
+        cJSON* correct_index = cJSON_GetObjectItem(question, "correct_index");
 
-        if (user_answer && correct_answer && cJSON_IsNumber(user_answer) && cJSON_IsNumber(correct_answer)) {
-            if ((int)user_answer->valuedouble == (int)correct_answer->valuedouble) {
+        if (user_answer && correct_index && cJSON_IsNumber(user_answer) && cJSON_IsNumber(correct_index)) {
+            if ((int)user_answer->valuedouble == (int)correct_index->valuedouble) {
                 correct_count++;
             }
         }
@@ -306,7 +314,7 @@ void handle_get_exam_state(int client_idx, cJSON* data)
     int num_questions = cJSON_GetArraySize(questions_no_answers);
     for (int i = 0; i < num_questions; i++) {
         cJSON* q = cJSON_GetArrayItem(questions_no_answers, i);
-        cJSON_DeleteItemFromObject(q, "correct_answer");
+        cJSON_DeleteItemFromObject(q, "correct_index");
     }
 
     cJSON_AddItemToObject(data_obj, "questions", questions_no_answers);

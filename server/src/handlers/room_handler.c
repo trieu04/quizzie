@@ -94,7 +94,7 @@ void handle_get_room_stats(int client_idx, cJSON* data)
     cJSON* results = cJSON_CreateArray();
     storage_get_room_results(room_id->valuestring, results);
 
-    // Calculate stats
+    // Calculate stats and add answered_count for each result
     int total_attempts = cJSON_GetArraySize(results);
     double total_score = 0;
     cJSON* item;
@@ -103,6 +103,19 @@ void handle_get_room_stats(int client_idx, cJSON* data)
         cJSON* score = cJSON_GetObjectItem(item, "score");
         if (score)
             total_score += score->valueint;
+
+        // Calculate answered_count from answers array
+        cJSON* answers = cJSON_GetObjectItem(item, "answers");
+        if (answers && cJSON_IsArray(answers)) {
+            int answered_count = 0;
+            cJSON* ans;
+            cJSON_ArrayForEach(ans, answers) {
+                if (cJSON_IsNumber(ans) && (int)ans->valuedouble >= 0) {
+                    answered_count++;
+                }
+            }
+            cJSON_AddNumberToObject(item, "answered_count", answered_count);
+        }
     }
     double avg_score = (total_attempts > 0) ? (total_score / total_attempts) : 0;
 

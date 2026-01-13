@@ -992,7 +992,7 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     GtkWidget* frame = gtk_frame_new("Participant Results");
     gtk_box_pack_start(GTK_BOX(vbox), frame, TRUE, TRUE, 5);
 
-    GtkListStore* res_store = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING);
+    GtkListStore* res_store = gtk_list_store_new(5, G_TYPE_STRING, G_TYPE_INT, G_TYPE_INT, G_TYPE_INT, G_TYPE_STRING);
     GtkWidget* tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(res_store));
 
     GtkCellRenderer* renderer = gtk_cell_renderer_text_new();
@@ -1002,12 +1002,20 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
     gtk_tree_view_column_set_sort_column_id(col, 0);
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
 
-    col = gtk_tree_view_column_new_with_attributes("Score", renderer, "text", 1, NULL);
+    col = gtk_tree_view_column_new_with_attributes("Total", renderer, "text", 1, NULL);
     gtk_tree_view_column_set_sort_column_id(col, 1);
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
 
-    col = gtk_tree_view_column_new_with_attributes("Time", renderer, "text", 2, NULL);
+    col = gtk_tree_view_column_new_with_attributes("Answered", renderer, "text", 2, NULL);
     gtk_tree_view_column_set_sort_column_id(col, 2);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
+
+    col = gtk_tree_view_column_new_with_attributes("Correct", renderer, "text", 3, NULL);
+    gtk_tree_view_column_set_sort_column_id(col, 3);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
+
+    col = gtk_tree_view_column_new_with_attributes("Time", renderer, "text", 4, NULL);
+    gtk_tree_view_column_set_sort_column_id(col, 4);
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree), col);
 
     GtkWidget* scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -1077,7 +1085,9 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
             cJSON* res;
             cJSON_ArrayForEach(res, results) {
                 cJSON* u = cJSON_GetObjectItem(res, "username");
-                cJSON* s = cJSON_GetObjectItem(res, "score");
+                cJSON* nq = cJSON_GetObjectItem(res, "num_questions");
+                cJSON* ac = cJSON_GetObjectItem(res, "answered_count");
+                cJSON* cc = cJSON_GetObjectItem(res, "correct_count");
                 cJSON* tm = cJSON_GetObjectItem(res, "timestamp");
                 char time_str[32] = "Unknown";
                 if (tm) {
@@ -1085,7 +1095,13 @@ static void show_room_details_dialog(GtkWidget* parent, const char* room_id, con
                     if (t == 0) t = time(NULL);
                     strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M", localtime(&t));
                 }
-                gtk_list_store_insert_with_values(res_store, NULL, -1, 0, u ? u->valuestring : "?", 1, s ? s->valueint : 0, 2, time_str, -1);
+                gtk_list_store_insert_with_values(res_store, NULL, -1,
+                    0, u ? u->valuestring : "?",
+                    1, nq ? nq->valueint : 0,
+                    2, ac ? ac->valueint : 0,
+                    3, cc ? cc->valueint : 0,
+                    4, time_str,
+                    -1);
             }
 
             GtkWidget* bbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);

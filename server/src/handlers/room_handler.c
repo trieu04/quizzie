@@ -26,6 +26,23 @@ void handle_create_room(int client_idx, cJSON* data)
         return;
     }
 
+    // Check if question bank exists and has enough questions
+    cJSON* questions = NULL;
+    if (storage_get_question_bank(bank->valuestring, &questions) != 0) {
+        client_send_error(client_idx, "Không tìm thấy ngân hàng câu hỏi");
+        return;
+    }
+    int total_q = cJSON_GetArraySize(questions);
+    int requested_q = num_q ? num_q->valueint : 10;
+    cJSON_Delete(questions);
+
+    if (requested_q > total_q) {
+        char error_msg[128];
+        snprintf(error_msg, sizeof(error_msg), "Không đủ số lượng câu hỏi trong ngân hàng");
+        client_send_error(client_idx, error_msg);
+        return;
+    }
+
     Room room;
     memset(&room, 0, sizeof(room));
     snprintf(room.id, sizeof(room.id), "room_%ld", time(NULL));
@@ -47,9 +64,9 @@ void handle_create_room(int client_idx, cJSON* data)
     room.show_answers = show_answers ? show_answers->valueint : 0;
 
     if (storage_save_room(&room) == 0) {
-        client_send_success(client_idx, "Room created");
+        client_send_success(client_idx, "Phòng thi đã được tạo");
     } else {
-        client_send_error(client_idx, "Failed to create room");
+        client_send_error(client_idx, "Không thể tạo phòng thi");
     }
 }
 

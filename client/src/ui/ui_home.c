@@ -148,22 +148,12 @@ void home_update_room_list(cJSON* rooms_array)
         cJSON* id = cJSON_GetObjectItem(room, "id");
         cJSON* name = cJSON_GetObjectItem(room, "name");
         cJSON* start_time = cJSON_GetObjectItem(room, "start_time");
-        cJSON* end_time = cJSON_GetObjectItem(room, "end_time");
+        cJSON* status_item = cJSON_GetObjectItem(room, "status");
         cJSON* duration = cJSON_GetObjectItem(room, "duration");
 
-        // Calculate status based on current time
-        time_t now = time(NULL);
-        time_t start = start_time && cJSON_IsNumber(start_time) ? (time_t)start_time->valuedouble : 0;
-        time_t end = end_time && cJSON_IsNumber(end_time) ? (time_t)end_time->valuedouble : 0;
+        const char* status = (status_item && cJSON_IsString(status_item)) ? status_item->valuestring : "N/A";
 
-        const char* status;
-        if (now < start) {
-            status = "WAITING";
-        } else if (now > end) {
-            status = "CLOSED";
-        } else {
-            status = "OPEN";
-        }
+        time_t start = start_time && cJSON_IsNumber(start_time) ? (time_t)start_time->valuedouble : 0;
 
         char start_time_str[64] = "N/A";
         if (start > 0) {

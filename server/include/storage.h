@@ -10,11 +10,11 @@ typedef struct
     long start_time;
     long end_time;
     char question_bank_id[32];
-    char status[16]; // "OPEN" or "CLOSED"
+    char status[16]; // "WAITING" or "OPEN" or "CLOSED"
     int num_questions;
     int allowed_attempts;
-    int duration; // minutes
-    int show_answers; // 1: allow viewing answers after completion, 0: don't show
+    int duration; // in minutes
+    int show_answers; // 1 or 0
 } Room;
 
 // User Management
@@ -62,7 +62,7 @@ typedef struct
     char room_id[32];
     char username[32];
     cJSON* questions; // Array of questions assigned to this user
-    cJSON* answers;   // Array of user answers (indices)
+    cJSON* answers;   // Array of user answers
     long start_time;
     int is_finished;
 } ExamSession;

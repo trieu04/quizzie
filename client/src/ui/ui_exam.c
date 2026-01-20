@@ -163,7 +163,6 @@ static void render_all_questions()
                     }
 
                     // Store question index and option index as data
-                    // We'll use a packed integer: (q_idx << 16) | opt_idx
                     int packed_data = (q_idx << 16) | opt_idx;
                     g_signal_connect(radio_btn, "toggled", G_CALLBACK(on_radio_toggled), GINT_TO_POINTER(packed_data));
 

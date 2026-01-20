@@ -48,7 +48,7 @@ static void on_register_btn_clicked(GtkWidget* widget, gpointer data)
 static void on_window_destroy(GtkWidget* widget, gpointer data)
 {
     (void)widget;
-    free(data); // Free the LoginWidgets struct
+    free(data);
 }
 
 void ui_show_login_window(GtkWidget** window_out, GtkWidget** status_label_out)

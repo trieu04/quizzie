@@ -180,15 +180,7 @@ static void show_create_room_dialog(GtkWidget* parent)
     send_packet(ui_get_socket(), "REQ", req);
     cJSON_Delete(req);
 
-    // Wait for response... implementing simple blocking wait here is tricky in
-    // GTK main loop. Hack: We will just populate with "loading..." and
-    // refreshing. Actually, let's just use a fixed list for now OR implement a
-    // dedicated listener function. Since we can't easily wait, let's just try to
-    // read next packet (DANGEROUS if not careful). Better Approach: Trigger
-    // request, and have the main loop update a global/static variable or just let
-    // the user know they need to refresh. For this implementation, I'll cheat:
-    // I'll read from socket directly here, bypassing main loop for one packet.
-    // WARNING: This steals the packet from main loop!
+    // Wait for response...
     char type[4];
     cJSON* resp = NULL;
     if (receive_packet(ui_get_socket(), type, &resp) == 0 && strcmp(type, "RES") == 0) {
@@ -444,10 +436,6 @@ static void on_editor_delete(GtkWidget* btn, gpointer data)
     }
 }
 
-// Cell edited callbacks would be needed for full editing (omitted for brevity,
-// using simple add logic) To make it fully editable, we need g_signal_connect
-// on "edited" for each cell renderer. I'll add basic string editing for the
-// question column as example.
 static void on_cell_edited(GtkCellRendererText* renderer, gchar* path_string, gchar* new_text, gpointer data)
 {
     EditorCtx* ctx = (EditorCtx*)data;

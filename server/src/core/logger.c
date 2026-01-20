@@ -41,11 +41,11 @@ void logger_log(LogLevel level, const char* file, int line, const char* fmt, ...
     vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // Print to console (without file/line for cleaner output)
+    // Print to console
     fprintf(out, "[%s] [%s] %s\n", timestamp, level_str, message);
     fflush(out);
 
-    // Print to file (with file/line for debugging)
+    // Print to file
     if (log_file) {
         fprintf(log_file, "[%s] [%s] [%s:%d] %s\n", timestamp, level_str, file, line, message);
         fflush(log_file);

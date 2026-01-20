@@ -306,8 +306,6 @@ int storage_delete_question_bank(const char* bank_id)
 // Room updates
 int storage_update_room_status(const char* room_id, const char* status)
 {
-    // Naive implementation: Load all, find, update, save all.
-    // Ideally use database or individual files.
     cJSON* root = NULL;
     FILE* f = fopen(ROOMS_FILE, "r");
     if (!f)
@@ -415,7 +413,7 @@ int storage_save_result(const RoomResult* result)
     char filepath[256];
     snprintf(filepath, sizeof(filepath), "%s%s.json", RESULT_DIR, result->room_id);
 
-    // Results per room are stored in a single JSON array file
+    // Results per room
     cJSON* root = NULL;
     FILE* f = fopen(filepath, "r");
     if (f) {
@@ -470,7 +468,7 @@ int storage_get_room_results(const char* room_id, cJSON* results_array)
 
     FILE* f = fopen(filepath, "r");
     if (!f)
-        return 0; // No results is fine
+        return 0; // No results
 
     fseek(f, 0, SEEK_END);
     long len = ftell(f);

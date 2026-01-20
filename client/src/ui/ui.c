@@ -237,13 +237,13 @@ static void handle_server_message(char* msg_type, cJSON* payload)
         } else if (data) {
             // Handle different response types based on data structure
 
-            // Check if it's a room list (array of rooms)
+            // Check if it's a room list
             if (cJSON_IsArray(data)) {
                 // Could be admin room list or participant room list
                 ui_admin_update_room_list(data);
                 home_update_room_list(data);
             }
-            // Check if it's a JOIN_ROOM response (questions array)
+            // Check if JOIN_ROOM
             else if (cJSON_HasObjectItem(data, "questions")) {
                 cJSON* questions = cJSON_GetObjectItem(data, "questions");
                 cJSON* answers = cJSON_GetObjectItem(data, "answers");

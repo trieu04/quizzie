@@ -21,6 +21,7 @@ Quizzie là một hệ thống thi trắc nghiệm trực tuyến hoạt động
 - **Server**: Ứng dụng chạy trên máy chủ, xử lý logic trung tâm và lưu trữ dữ liệu.
 - **GTK+**: Bộ công cụ widget để tạo giao diện đồ họa người dùng.
 - **Poll**: Cơ chế I/O multiplexing được sử dụng trên Server để xử lý đa kết nối.
+- **cJSON**: Thư viện dùng để xử lý dữ liệu định dạng JSON trong C.
 
 ---
 
@@ -31,16 +32,16 @@ Quizzie là một hệ thống độc lập bao gồm:
 - **Server Module**: Chạy trên môi trường Linux/Unix, chịu trách nhiệm quản lý kết nối, phòng thi và dữ liệu.
 - **Client Module**: Chạy trên môi trường cài đặt sẵn thư viện GTK+, cung cấp giao diện tương tác cho người dùng.
 
-Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định dạng bản tin văn bản (Text-based).
+Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định dạng gói tin có Header nhị phân và Payload JSON.
 
 ### 2.2. Đặc điểm người dùng
 - **Người dùng phổ thông (Participant)**: Sử dụng hệ thống để ôn tập, thi cử. Yêu cầu giao diện đơn giản, dễ sử dụng.
-- **Quản trị viên (Admin)**: Có kiến thức cơ bản về quản lý tệp tin để chuẩn bị ngân hàng câu hỏi (định dạng CSV) và cấu hình thông số phòng thi.
+- **Quản trị viên (Admin)**: Có quyền quản lý phòng thi, ngân hàng câu hỏi và xem thống kê kết quả.
 
 ### 2.3. Môi trường vận hành
 - **Server**:
   - Hệ điều hành: Linux (Ubuntu, CentOS, v.v.).
-  - Kiến trúc: Đơn luồng (Single-thread) sử dụng `poll` cho I/O blocking.
+  - Kiến trúc: Đơn luồng (Single-thread) sử dụng `poll` cho I/O multiplexing để xử lý đồng thời nhiều client.
 - **Client**:
   - Hệ điều hành: Linux (hoặc các OS hỗ trợ GTK+ 3.0).
   - Thư viện yêu cầu: GTK+ 3.0.
@@ -52,72 +53,63 @@ Giao tiếp giữa Client và Server thông qua giao thức TCP/IP với định
 ### 3.1. Yêu cầu chức năng (Functional Requirements)
 
 #### 3.1.1. Quản lý tài khoản và Phiên làm việc
-- **REQ-AUTH-01 (Đăng ký)**: Người dùng có thể đăng ký tài khoản mới với tên đăng nhập (duy nhất) và mật khẩu.
-- **REQ-AUTH-02 (Đăng nhập)**: Người dùng đăng nhập vào hệ thống để truy cập các chức năng.
-- **REQ-AUTH-03 (Đăng xuất)**: Người dùng có thể đăng xuất khỏi hệ thống an toàn, giải phóng kết nối.
-- **REQ-AUTH-04 (Tái kết nối)**: Hệ thống hỗ trợ cơ chế tự động kết nối lại (Rejoin) nếu mất kết nối mạng tạm thời.
+- **REQ-AUTH-01 (Đăng ký)**: Người dùng có thể đăng ký tài khoản mới với tên đăng nhập (duy nhất), mật khẩu và vai trò (Admin/Participant).
+- **REQ-AUTH-02 (Đăng nhập)**: Người dùng đăng nhập vào hệ thống. Hệ thống ngăn chặn việc đăng nhập đồng thời trên nhiều thiết bị bằng cùng một tài khoản (Kick duplicate login).
+- **REQ-AUTH-03 (Đăng xuất)**: Người dùng có thể đăng xuất khỏi hệ thống an toàn.
+- **REQ-AUTH-04 (Duy trì phiên)**: Server duy trì trạng thái đăng nhập cho client trong suốt thời gian kết nối.
 
 #### 3.1.2. Quản lý Phòng thi (Dành cho Admin)
-- **REQ-ROOM-01 (Tạo phòng)**: Admin có thể tạo phòng thi mới, thiết lập tên phòng, thời gian bắt đầu, thời gian kết thúc (hoặc thời lượng), số lượng câu hỏi, số lần thi cho phép.
-- **REQ-ROOM-02 (Cấu hình đề thi)**: Admin chọn bộ câu hỏi từ ngân hàng câu hỏi có sẵn hoặc tải lên file CSV mới.
-- **REQ-ROOM-03 (Quản lý phòng)**: Admin có thể xem danh sách phòng, xem chi tiết thống kê và xóa phòng đã tạo.
-- **REQ-ROOM-04 (Quản lý câu hỏi)**: Cho phép Import (CSV)/Xem danh sách/Chỉnh sửa/Xóa ngân hàng câu hỏi. Client parse file CSV và gửi dữ liệu dạng JSON lên Server.
-- **REQ-ROOM-05 (Xem chi tiết phòng)**: Admin có thể xem chi tiết cấu hình phòng, trạng thái hiện tại, thống kê tổng quát và danh sách kết quả của các thí sinh đã tham gia.
+- **REQ-ROOM-01 (Tạo phòng)**: Admin tạo phòng thi với các thông số: tên phòng, thời gian bắt đầu, thời gian kết thúc, bộ câu hỏi, số lượng câu hỏi, thời lượng làm bài và số lần thi cho phép.
+- **REQ-ROOM-02 (Tự động đóng phòng)**: Server tự động kiểm tra định kỳ (5 giây/lần) và chuyển trạng thái phòng từ `OPEN` sang `CLOSED` nếu đã quá thời gian kết thúc.
+- **REQ-ROOM-03 (Quản lý phòng)**: Admin có thể xem danh sách phòng, xem chi tiết thống kê (số người tham gia, điểm trung bình) và xóa phòng.
+- **REQ-ROOM-04 (Quản lý câu hỏi)**: Cho phép Import (CSV)/Xem danh sách/Xóa ngân hàng câu hỏi. Dữ liệu được lưu trữ dưới dạng JSON trên Server.
+- **REQ-ROOM-05 (Xem kết quả)**: Admin có thể xem danh sách kết quả chi tiết của tất cả thí sinh trong một phòng thi.
 
 #### 3.1.3. Tham gia thi (Dành cho Participant)
-- **REQ-QUIZ-01 (Xem danh sách phòng)**: Người dùng xem được danh sách các phòng thi, trạng thái phòng (Waiting, Open, Closed). Chỉ tham gia được các phòng Open.
-- **REQ-QUIZ-02 (Vào phòng thi)**: Người dùng tham gia vào phòng thi (trạng thái Open) và bắt đầu làm bài ngay lập tức.
+- **REQ-QUIZ-01 (Xem danh sách phòng)**: Người dùng xem được danh sách các phòng thi và trạng thái hiện tại.
+- **REQ-QUIZ-02 (Vào phòng thi)**: Participant chỉ có thể tham gia nếu phòng đang `OPEN` và còn lượt thi.
 - **REQ-QUIZ-03 (Làm bài thi)**:
-  - Hiển thị câu hỏi và 4 đáp án lựa chọn.
-  - Đồng hồ đếm ngược thời gian còn lại.
-  - Gửi đáp án đã chọn lên Server ngay lập tức để lưu trạng thái.
-- **REQ-QUIZ-04 (Nộp bài)**: Người dùng có thể nộp bài trước khi hết giờ. Hệ thống tự động thu bài khi hết giờ.
+  - Câu hỏi được trộn ngẫu nhiên (shuffle) từ ngân hàng câu hỏi trước khi gửi xuống Client.
+  - Hiển thị nội dung câu hỏi và 4 lựa chọn (không bao gồm đáp án đúng để tránh gian lận).
+  - Đồng hồ đếm ngược thời gian làm bài.
+  - Gửi đáp án từng câu lên Server ngay khi chọn để lưu trạng thái.
+- **REQ-QUIZ-04 (Phục hồi phiên thi)**: Nếu bị mất kết nối đột ngột, Participant có thể vào lại phòng thi để tiếp tục làm bài với các câu trả lời đã lưu và thời gian còn lại (Rejoin persistence).
+- **REQ-QUIZ-05 (Nộp bài)**: Hệ thống tự động tính điểm và lưu kết quả vào file ngay khi kết thúc bài thi.
 
 ### 3.2. Yêu cầu phi chức năng (Non-functional Requirements)
 
 #### 3.2.1. Hiệu năng (Performance)
-- **REQ-PERF-01**: Server phải có khả năng xử lý đồng thời nhiều kết nối (Concurrent connections) mà không bị chặn (Non-blocking I/O).
-- **REQ-PERF-02**: Độ trễ (Latency) khi gửi nhận câu trả lời phải thấp để đảm bảo tính thời gian thực của bài thi.
+- **REQ-PERF-01**: Server xử lý đồng thời nhiều kết nối sử dụng `poll` (Non-blocking I/O).
+- **REQ-PERF-02**: Tốc độ phản hồi các yêu cầu từ Client phải đảm bảo trải nghiệm thi mượt mà.
 
 #### 3.2.2. Độ tin cậy (Reliability)
-- **REQ-REL-01**: Server không được crash khi một client ngắt kết nối đột ngột.
-- **REQ-REL-02**: Dữ liệu người dùng và câu hỏi phải được lưu trữ và đọc chính xác từ file.
+- **REQ-REL-01**: Server hoạt động ổn định, xử lý các trường hợp Client ngắt kết nối bất thường mà không ảnh hưởng đến các client khác.
+- **REQ-REL-02**: Cơ chế lưu trữ phiên thi (Session persistence) đảm bảo quyền lợi cho thí sinh khi gặp sự cố mạng.
 
 #### 3.2.3. Khả năng bảo trì (Maintainability)
-- **REQ-MAINT-01**: Code Client và Server được tách biệt rõ ràng theo module (Net, UI/Core, Storage).
-- **REQ-MAINT-02**: Giao thức giao tiếp sử dụng JSON với header binary định rõ độ dài và loại tin nhắn, dễ dàng cho việc mở rộng và debug.
+- **REQ-MAINT-01**: Kiến trúc phân lớp rõ ràng: Net (Mạng), Handlers (Xử lý logic), Storage (Lưu trữ).
+- **REQ-MAINT-02**: Giao thức giao tiếp thống nhất: Binary Header + JSON Payload.
 
 ### 3.3. Yêu cầu giao diện (Interface Requirements)
 
 #### 3.3.1. Giao diện người dùng (User Interface)
-- Sử dụng thư viện **GTK+ 3.0**.
-- **Màn hình Login**: 2 trường input (Username, Password) và nút Login/Register.
-- **Màn hình Dashboard**: Danh sách phòng thi (List View), các nút chức năng (Create, Join, Output).
-- **Màn hình Thi (Exam)**: Khu vực hiển thị nội dung câu hỏi, 4 nút hoặc Radio button cho đáp án, thanh tiến trình hoặc đồng hồ đếm ngược.
+- Xây dựng trên nền tảng **GTK+ 3.0**.
+- **Màn hình Dashboard**: Phân chia chức năng theo vai trò người dùng (Admin/Participant).
 
 #### 3.3.2. Giao diện giao tiếp (Communication Interface)
-- Protocol: Binary Header + JSON Payload.
+- Protocol: Binary Header (7 bytes) + JSON Payload.
 - Header:
-    - `TotalLength` (4 bytes): Độ dài tổng cộng của gói tin (bao gồm header và payload).
-    - `MSG_TYPE` (3 bytes): Loại tin nhắn (`REQ`, `RES`, `ERR`, `UPD`, `HBT`).
-- Payload: Dữ liệu định dạng JSON, kích thước tối đa 128KB.
-- Ví dụ:
-    - Header: `00000100` (Length) + `REQ` (Type)
-    - Payload: `{"action": "LOGIN", "data": {"username": "user1", "password": "123"}}`
+    - `TotalLength` (4 bytes): Kiểu `uint32_t` (Network byte order), tổng độ dài gói tin.
+    - `MSG_TYPE` (3 bytes): Chuỗi ký tự xác định loại tin nhắn (`REQ`, `RES`, `ERR`, `UPD`, `HBT`).
+- Payload: Dữ liệu định dạng JSON xử lý qua thư viện `cJSON`.
 
 ---
 
-## 4. Phụ lục: Định dạng dữ liệu
+## 4. Phụ lục: Lưu trữ dữ liệu
 
-### 4.1. File Ngân hàng câu hỏi (CSV)
-Định dạng:
-```csv
-Question_Text,Answer_A,Answer_B,Answer_C,Answer_D,Correct_Answer_Char
-```
-Ví dụ:
-```csv
-Thủ đô của Việt Nam là gì?,Hà Nội,TP.HCM,Đà Nẵng,Huế,A
-```
-
-### 4.2. File Người dùng
-Lưu trữ thông tin đăng nhập (khuyến nghị mã hóa mật khẩu, nhưng phiên bản hiện tại có thể lưu plaintext cho mục đích học tập).
+Hệ thống sử dụng cơ chế lưu trữ dạng file (Flat-file storage) trong thư mục `data/`:
+- **Người dùng**: `data/users.txt` (định dạng `username:password:role`).
+- **Phòng thi**: `data/rooms.json`.
+- **Câu hỏi**: `data/questions/[bank_id].json`.
+- **Phiên thi**: `data/sessions/` (lưu trạng thái thi hiện tại của thí sinh).
+- **Kết quả**: `data/results/` (lưu điểm số cuối cùng).
